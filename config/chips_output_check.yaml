@@ -1,0 +1,123 @@
+- analysis:
+    - align:
+        - SAMPLEID:
+            - SAMPLEID.sorted.bam:
+                check_bam
+            - SAMPLEID_unique.sorted.bam:
+                check_bam
+    - peaks:
+        - SAMPLEID.rep1:
+            - SAMPLEID.(\w+)_summits.bed:
+                check_peak_summit_bed_file
+            - SAMPLEID.(\w+)_peaks.bed:
+                check_peak_bed_file
+            - SAMPLEID.(\w+)_sorted_peaks.bed:
+                check_peak_bed_file
+            - SAMPLEID.(\w+)_sorted_summits.bed:
+                check_peak_summit_bed_file
+            - SAMPLEID.(\w+)_5fold_peaks.bed:
+                check_narrow_peak_bed_file
+            - SAMPLEID.(\w+)_sorted_5k_summits.bed:
+                check_peak_summit_bed_file
+            - SAMPLEID.(\w+)_peaks.xls:
+                check_peak_xls_file
+
+- cistrome:
+    - datasetSAMPLEID:
+        - SAMPLEID_peaks.bed:
+            check_peak_bed_file
+        - SAMPLEID_peaks.xls:
+            check_peak_xls_file
+        - SAMPLEID_sorted_(peak|peaks).narrowPeak.bed:
+            check_narrow_peak_bed_file
+        - SAMPLEID_sorted_(peak|peaks).broadPeak.bed:
+            check_broad_peak_bed_file
+        - SAMPLEID_sorted_summits.bed:  
+            check_peak_summit_bed_file
+        - SAMPLEID_treat.bw:
+            check_bigwig_file
+
+        - attic:
+            - SAMPLEID_conserv_compare.pdf  
+            - SAMPLEID_conserv_img.png:
+                check_exists
+            - SAMPLEID_conserv.R:
+            - SAMPLEID_conserv.txt:
+                check_exists
+            - SAMPLEID_gene_score_5fold.txt:  
+                check_exists
+            - SAMPLEID_gene_score.txt:
+                check_exists
+            - SAMPLEID_gene_score_1k.txt:
+                check_exists
+            - SAMPLEID_gene_score(|_10k).txt:
+                check_exists
+            - SAMPLEID_gene_score_100k.txt:
+                check_exists
+            - SAMPLEID_treat_rep1.bam:
+                check_exists
+   
+            - json:
+                - SAMPLEID_conserv.json:
+                    check_json
+                - SAMPLEID_dhs.json:
+                    check_json
+                - SAMPLEID_enrich_meta.json:
+                    check_json
+                - SAMPLEID_fastqc.json:
+                    check_json
+                - SAMPLEID_frag.json:
+                    check_ChIP_frag_json
+                - SAMPLEID_frip.json:
+                    check_json
+                - SAMPLEID_macs2.json:  
+                    check_json
+                - SAMPLEID_map.json:
+                    check_json
+                - SAMPLEID_meta.json:
+                    check_json
+                - SAMPLEID_pbc.json:
+                    check_json
+                - SAMPLEID_seqpos.json:
+                    check_motif_json
+
+            - SAMPLEID_100k_fastqc:
+                - fastqc_data.txt:
+                    check_exists
+                - fastqc_report.html:
+                    check_exists
+                - summary.txt:
+                    check_exists
+
+                - Icons:
+
+                - Images: 
+                    - duplication_levels.png
+                    - kmer_profiles.png
+                    - per_base_gc_content.png
+                    - per_base_n_content.png
+                    - per_base_quality.png
+                    - per_base_sequence_content.png
+                    - per_sequence_gc_content.png
+                    - per_sequence_quality.png
+                    - sequence_length_distribution.png
+
+            - SAMPLEID_seqpos:
+                - denovo.xml:
+                    check_motif_files
+                - mdseqpos_index.html:
+                    check_motif_files
+                - motif_list.json:
+                    check_motif_files
+                - table.html:
+                    check_motif_files
+
+                - motif:
+                    - (\w+).html:
+                        check_motif_files
+                - pssm:
+                    - (\w+).html:
+                        check_motif_files
+                - seqLogo:
+                    - (\w+).png:
+                        check_motif_files
