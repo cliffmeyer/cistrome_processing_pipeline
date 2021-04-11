@@ -2,30 +2,49 @@
 
 Scripts for downloading samples from sra, running chips pipeline and transferring to Cistrome DB server.
 main script is scheduler. Run this by the schedule.sbatch script.
+The system is designed to run on a cluster with the SLURM workload manager. 
+
+## Requires:
+NCBI SRA toolkit https://github.com/ncbi/sra-tools
+CHIPS (Cistrome DB3 Version) ChIP-seq and chromatin accessibility processing pipeline
+
+
+## Configuration file:
+`config/rc-fas-harvard.conf`
+
 
 To initialize the environment:
 `source /n/xiaoleliu_lab/chips/miniconda3/bin/activate`
 `conda activate chips`
 
-To submit the scheduler to the SLURM:
+## How is works
+
+The system is run by a script that runs indefinitely, which is submitted to the SLURM 
+with this script:
+
 `sbatch schedule.sbatch`
+
+The `schedule.batch` job submission script
+starts the scheduler script `scheduler.py`, which runs indefinitely, 
+mostly in the background. This script checks the status of various steps 
+at regular intervals, checks resources and submits new jobs when needed.
+
+
+The scheduler runs several processes:
+- polls the Cistrome DB home server for sample processing requests and updates a local queue of these samples.
+- downloads raw sample data from from SRA using the SRA tookit and converts files to fastq format.
+- sets up and runs the CHIPS Snakemake pipeline for each sample. This is where most of the processing occurs, 
+including read mapping, peak calling, quality control assessment, as well as downstream processed such as peak annotation and 
+motif enrichment analysis. These CHIPs jobs are run on scavanged cluster resources which may be, and often are terminated, mid-process. 
+The scheduler restarts incomplete CHIPs jobs, as many times as needed to get the jobs complete. 
+- check CHIPS results for completion against an integrity checklist. This is designed to catch gross errors and missing data.
+- transfer processed data to Cistrome DB home server
+- transfer processed data to backup server, and if process fail to transfer status report (TODO)
+- clean up after completion: delete most files, leaving only record that processing occurred. 
+
+The larger jobs initiated by the scheduler are submitted via SLURM sbatch. 
 
 To check status of jobs on cluster:
 `python cluster_stats.py -c config/rc-fas-harvard.conf`
 
-Configuration file:
-`config/rc-fas-harvard.conf`
-
-
-## Scheduler
-`schedule.batch` runs `scheduler.py`
-
-The scheduler runs several processes:
-- updates sampless in local queue
-- download raw sample data from from sra
-- setup and run CHIPS Snakemake pipeline for each sample
-- check CHIPS results for completion and integrity checklist 
-- transfer to server
-- transfer_to_backup_server
-- clean_up_after_completion
 
