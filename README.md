@@ -17,7 +17,7 @@ To initialize the environment:
 `source /n/xiaoleliu_lab/chips/miniconda3/bin/activate`
 `conda activate chips`
 
-## How is works
+## How it works
 
 The system is run by a script that runs indefinitely, which is submitted to the SLURM 
 with this script:
@@ -47,4 +47,20 @@ The larger jobs initiated by the scheduler are submitted via SLURM sbatch.
 To check status of jobs on cluster:
 `python cluster_stats.py -c config/rc-fas-harvard.conf`
 
+## Note on resource optimization
+
+The Harvard Cannon cluster allocates resources via a 'FairShare' resource usage system. 
+In this system requested memory is as important as used CPU time, therefore it is important 
+to keep memory down and to ensure the memory allocation does not greatly exceed requirements over the 
+course of the entire job. Mapping is a resource intensive step, which can take a long time. To mitigate the 
+problem of mapping being interrupted mid-process and having to remap from zero, fastq files are split into 
+smaller files. This is leads to smaller and more predictable memory requirements. 
+
+## Note on restarting sample processing from scratch 
+
+Sometimes processing is interrupted in a way that does not allow for recovery. Sometimes these jobs 
+need to be restarted from the beginning. After a limited number of tries these samples are given up on.
+
+
+  
 
