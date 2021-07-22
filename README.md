@@ -7,15 +7,21 @@ The system is designed to run on a cluster with the SLURM workload manager.
 ## Requires:
 NCBI SRA toolkit https://github.com/ncbi/sra-tools
 CHIPS (Cistrome DB3 Version) ChIP-seq and chromatin accessibility processing pipeline
+Google Cloud SDK https://cloud.google.com/sdk/docs/install
 
+
+## Installation
 
 ## Configuration file:
 `config/rc-fas-harvard.conf`
 
-
 To initialize the environment:
-`source /n/xiaoleliu_lab/chips/miniconda3/bin/activate`
-`conda activate chips`
+`source /n/home08/cliffmeyer/miniconda3/bin/activate`
+`conda activate cistrome_chips`
+
+The pipeline is intended to work on a SLURM server and this file needs to 
+be configured:
+`schedule.sbatch` 
 
 ## How it works
 

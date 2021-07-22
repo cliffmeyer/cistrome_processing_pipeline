@@ -140,6 +140,29 @@ def rsync_to_google_authenticated_server(path):
         return False
 
 
+def copy_to_google_cloud_server(path):
+
+    if os.path.isfile(path) == False: 
+        stdout_path = os.path.join(path,f'{Config.server}_rsync_stdout.txt')
+        stderr_path = os.path.join(path,f'{Config.server}_rsync_stderr.txt')
+    else:
+        path_head,path_tail = os.path.split(path) 
+        stdout_path = os.path.join(path_head,f'{Config.server}_rsync_stdout.txt')
+        stderr_path = os.path.join(path_head,f'{Config.server}_rsync_stderr.txt')
+
+    try:
+        transfer_cmd = f'gsutil rsync -rc {path} {Config.google_cloud_path}/'
+        fp_stdout = open(stdout_path,'w')
+        fp_stderr = open(stderr_path,'w')
+        subprocess.call(transfer_cmd,shell=True,stdout=fp_stdout,stderr=fp_stderr)
+        time.sleep(1)
+        fp_stdout.close()
+        fp_stderr.close()
+        return True
+    except:
+        return False
+ 
+
 def transfer_to_server(sample_id,attempts=5):
     sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'dataset{sample_id}')
     sample_md5_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}.md5')
@@ -158,6 +181,9 @@ def transfer_to_server(sample_id,attempts=5):
         elif auth_mode == 'password_google':
             status     = rsync_to_google_authenticated_server(sample_path)
             md5_status = rsync_to_google_authenticated_server(sample_md5_path)
+        elif auth_mode == 'google_cloud':
+            status     = copy_to_google_cloud_server(sample_path)
+            md5_status = copy_to_google_cloud_server(sample_md5_path)
         else:
             status = False
             md5_status = False
