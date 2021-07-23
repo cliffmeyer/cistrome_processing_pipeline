@@ -35,6 +35,8 @@ class Config:
         elif cls.auth_mode == 'password_google':
             cls.key_file = conf[server]['google_auth_file']
             cls.password_file = conf[server]['password_file']
+        elif cls.auth_mode == 'google_cloud':
+            pass
  
         cls.data_collection_runs = conf['paths']['data_collection_runs']
         cls.cistrome_result      = conf['paths']['cistrome_result']
@@ -140,7 +142,7 @@ def rsync_to_google_authenticated_server(path):
         return False
 
 
-def copy_to_google_cloud_server(path):
+def copy_to_google_cloud_server(path, sample_id_stub=''):
 
     if os.path.isfile(path) == False: 
         stdout_path = os.path.join(path,f'{Config.server}_rsync_stdout.txt')
@@ -150,8 +152,10 @@ def copy_to_google_cloud_server(path):
         stdout_path = os.path.join(path_head,f'{Config.server}_rsync_stdout.txt')
         stderr_path = os.path.join(path_head,f'{Config.server}_rsync_stderr.txt')
 
+    remote_path = os.path.join( Config.path, sample_id_stub )
+
     try:
-        transfer_cmd = f'gsutil rsync -rc {path} {Config.google_cloud_path}/'
+        transfer_cmd = f'gsutil rsync -rc {path} {remote_path}/'
         fp_stdout = open(stdout_path,'w')
         fp_stderr = open(stderr_path,'w')
         subprocess.call(transfer_cmd,shell=True,stdout=fp_stdout,stderr=fp_stderr)
@@ -166,6 +170,7 @@ def copy_to_google_cloud_server(path):
 def transfer_to_server(sample_id,attempts=5):
     sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'dataset{sample_id}')
     sample_md5_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}.md5')
+    sample_id_stub = sample_id[:-3]
     auth_mode = Config.auth_mode
  
     for i in range(attempts):
@@ -182,8 +187,8 @@ def transfer_to_server(sample_id,attempts=5):
             status     = rsync_to_google_authenticated_server(sample_path)
             md5_status = rsync_to_google_authenticated_server(sample_md5_path)
         elif auth_mode == 'google_cloud':
-            status     = copy_to_google_cloud_server(sample_path)
-            md5_status = copy_to_google_cloud_server(sample_md5_path)
+            status     = copy_to_google_cloud_server(sample_path, sample_id_stub = sample_id_stub )
+            md5_status = copy_to_google_cloud_server(sample_md5_path, sample_id_stub = sample_id_stub )
         else:
             status = False
             md5_status = False

@@ -530,7 +530,8 @@ def transfer_to_server():
 def transfer_to_backup_server():
 
     configpath = Config.configpath
-    server = 'backup_server'
+    #server = 'backup_server'
+    server = 'google_cloud'
     cluster_status = cluster_stats.ClusterStats(configpath)
     sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
     sample_queue.read_local_queue() 
