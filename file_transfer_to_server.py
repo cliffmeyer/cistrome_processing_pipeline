@@ -142,7 +142,7 @@ def rsync_to_google_authenticated_server(path):
         return False
 
 
-def copy_to_google_cloud_server(path, sample_id_stub=''):
+def rsync_to_google_cloud_server(path, sample_id_stub=''):
 
     if os.path.isfile(path) == False: 
         stdout_path = os.path.join(path,f'{Config.server}_rsync_stdout.txt')
@@ -187,8 +187,8 @@ def transfer_to_server(sample_id,attempts=5):
             status     = rsync_to_google_authenticated_server(sample_path)
             md5_status = rsync_to_google_authenticated_server(sample_md5_path)
         elif auth_mode == 'google_cloud':
-            status     = copy_to_google_cloud_server(sample_path, sample_id_stub = sample_id_stub )
-            md5_status = copy_to_google_cloud_server(sample_md5_path, sample_id_stub = sample_id_stub )
+            status     = rsync_to_google_cloud_server(sample_path, sample_id_stub = sample_id_stub )
+            md5_status = rsync_to_google_cloud_server(sample_md5_path, sample_id_stub = sample_id_stub )
         else:
             status = False
             md5_status = False
