@@ -155,12 +155,12 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
     remote_path = os.path.join( Config.path, sample_id_stub )
 
     try:
-        transfer_cmd = f'gsutil rsync -rc {path} gs://{remote_path}/'
+        transfer_cmd = f'gsutil rsync -r {path} gs://{remote_path}/'
         transfer_cmd = transfer_cmd.replace('///','//')
         fp_stdout = open(stdout_path,'w')
         fp_stderr = open(stderr_path,'w')
         subprocess.call(transfer_cmd,shell=True,stdout=fp_stdout,stderr=fp_stderr)
-        time.sleep(1)
+        time.sleep(10)
         fp_stdout.close()
         fp_stderr.close()
         return True
