@@ -113,9 +113,9 @@ class ChipsSetup():
 
     def link_chips_files(self):
         #ref_files_path  = os.path.join(self.sample_path, 'ref_files')
-        cidc_chips_path = os.path.join(self.sample_path, 'cidc_chips')
-        if os.path.exists(cidc_chips_path) == False:
-            subprocess.run('ln -s %s %s' % (self.sys_config['chips']['chips_path'], cidc_chips_path), shell=True )
+        cistrome_chips_path = os.path.join(self.sample_path, 'cistrome_chips')
+        if os.path.exists(cistrome_chips_path) == False:
+            subprocess.run('ln -s %s %s' % (self.sys_config['chips']['chips_path'], cistrome_chips_path), shell=True )
         #if os.path.exists(ref_files_path) == False:
         #    subprocess.run('ln -s %s %s' % (self.sys_config['chips']['chips_ref_files'], ref_files_path), shell=True )
 

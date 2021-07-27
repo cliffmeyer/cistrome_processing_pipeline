@@ -12,7 +12,6 @@ import re
 import requests_from_cistromeDB
 import cluster_stats
 
-
 DEBUG = False
 
 START_HOUR = 11
@@ -267,6 +266,22 @@ def update_cluster_runstats_in_local_queue():
 
     sample_queue.write_local_queue() 
 
+# TODO check 
+def write_process_status_file( external_id='', external_id_type='GEO', process_status=''):
+    samples_json = {'samples':[
+            { 'id':None,
+              'external_id':external_id,
+              'external_id_type':external_id_type,
+              'process_status':process_status
+            }]
+        }
+
+    sample_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
+    cistrome_path = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] ) 
+    filename = os.path.join( cistrome_path, f'dataset{external_id}_status.json' )
+    with open(filename,'w') as fp:
+        json.dump( samples_json, fp )
+
 
 def clean_up_failed_samples():
     configpath = Config.configpath
@@ -279,17 +294,24 @@ def clean_up_failed_samples():
     samples_to_process = sample_queue.get_local_queue()
  
     for gsmid,sample_info in samples_to_process.items(): 
-        if (sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='SRA') >= max_fails or
-            sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='CHIPS') >= max_fails or
-            sample_queue.get_sample_status_count(sample_id=gsmid,info_key='CHIPS_CHECK') >= max_fails):
+        if (sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='SRA') >= max_fails:
+            process_status = 'DOWNLOAD_ERROR' #TODO
+        elif sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='CHIPS') >= max_fails:
+            process_status = 'PROCESSING_ERROR' #TODO
+        elif sample_queue.get_sample_status_count(sample_id=gsmid,info_key='CHIPS_CHECK') >= max_fails):
+            process_status = 'PROCESSING_ERROR' # TODO 
             # NOTE: testing to see how many time chips_check has run rather than has failed
             # if it is running many times there is a problem with the sample 
             # sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='CHIPS_CHECK') >= max_fails):
-
+        else:
+            process_status = 'UNPROCESSED' # TODO
+    
+        if process_status in ['DOWNLOAD_ERROR','PROCESSING_ERROR']:
             print(f'cleaning up failed sample {gsmid}') 
-            sample_queue.clear_sample_info(sample_id=gsmid,info_key='SRA')
-            sample_queue.clear_sample_info(sample_id=gsmid,info_key='CHIPS')
-            sample_queue.clear_sample_info(sample_id=gsmid,info_key='CHIPS_CHECK')
+            write_process_status_file( external_id=gsmid, external_id_type='GEO', process_status=process_status )
+            sample_queue.clear_sample_info( sample_id=gsmid, info_key='SRA')
+            sample_queue.clear_sample_info( sample_id=gsmid, info_key='CHIPS')
+            sample_queue.clear_sample_info( sample_id=gsmid, info_key='CHIPS_CHECK')
             delete_sbatch_files(gsmid)
             delete_sra_files(gsmid)
             delete_fastq_files(gsmid)

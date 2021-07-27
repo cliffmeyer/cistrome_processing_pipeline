@@ -7,6 +7,7 @@ import os
 
 
 class SystemConfig():
+
     def __init__(self,config_filename):
         self.config_filename = config_filename
         self.read_config()

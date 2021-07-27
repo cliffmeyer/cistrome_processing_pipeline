@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # ================================
-# Liulab DFCI
+# CistromeDB
 # @date: July 2020
 # ================================
 
