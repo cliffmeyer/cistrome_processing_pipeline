@@ -450,6 +450,10 @@ def check_chips_results():
         time.sleep(1)
         print(datetime.datetime.now())
 
+        if chips_check_complete_check(gsmid):
+            process_status = 'COMPLETE'
+            write_process_status_file( external_id=gsmid, external_id_type='GEO', process_status=process_status )
+
     return 
 
 

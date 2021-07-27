@@ -130,20 +130,25 @@ class ChipsSetup():
         if self.sample_type == "dnase":
             chips_config["cutoff"] = 150
             chips_config["ChIP_model"] = False
+            chips_config["keep_bam"] = True
             self.broad_type = False
         elif self.sample_type == "atac":
             chips_config["cutoff"] = 150
             chips_config["ChIP_model"] = False
+            chips_config["keep_bam"] = True
             self.broad_type = False
         elif self.sample_type=="tf":
             chips_config["motif"] = 'mdseqpos'
             chips_config["ChIP_model"] = True
+            chips_config["keep_bam"] = False
             self.broad_type = False
         elif self.sample_type in narrow_histone:
             self.broad_type = False
             chips_config["ChIP_model"] = True
+            chips_config["keep_bam"] = False
         elif self.sample_type in broad_histone:
             self.broad_type = True
+            chips_config["keep_bam"] = False
 
         chips_config["macs2_broadpeaks"] = self.broad_type
 
