@@ -152,7 +152,7 @@ def download_from_sra():
 
     # TODO scratch = cluster_status.get_scratch_use()
     # check disk space availability
-    #if (scratch['quota'] - scratch['used']) < float(config['process_server']['min_disk_space_avail']):
+    # if (scratch['quota'] - scratch['used']) < float(config['process_server']['min_disk_space_avail']):
     #    return
 
     sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
@@ -217,6 +217,13 @@ def download_from_sra():
         time.sleep(1)
         print(datetime.datetime.now(),file=fp)
     fp.close()
+
+
+def process_status_file_check(gsmid):
+    chips_run_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
+    cistrome_path = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] ) 
+    process_status_path = os.path.join( cistrome_path, f'dataset{external_id}_status.json' )
+    return os.path.exists(process_status_path) 
 
 
 def chips_complete_check(gsmid):
@@ -287,6 +294,7 @@ def clean_up_failed_samples():
     configpath = Config.configpath
     partition = Config.sys_config['process_server']['partition']
     max_fails = int(Config.sys_config['process_server']['max_fails'])
+    max_restarts = int(Config.sys_config['process_server']['max_restarts'])
     cluster_status = cluster_stats.ClusterStats(configpath)
 
     sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
@@ -308,7 +316,6 @@ def clean_up_failed_samples():
     
         if process_status in ['DOWNLOAD_ERROR','PROCESSING_ERROR']:
             print(f'cleaning up failed sample {gsmid}') 
-            write_process_status_file( external_id=gsmid, external_id_type='GEO', process_status=process_status )
             sample_queue.clear_sample_info( sample_id=gsmid, info_key='SRA')
             sample_queue.clear_sample_info( sample_id=gsmid, info_key='CHIPS')
             sample_queue.clear_sample_info( sample_id=gsmid, info_key='CHIPS_CHECK')
@@ -317,6 +324,9 @@ def clean_up_failed_samples():
             delete_fastq_files(gsmid)
             delete_result_files(gsmid,complete=False)
             sample_queue.increment_sample_restart_count(sample_id=gsmid)
+ 
+        if sample_queue.get_sample_restart_count(sample_id=gsmid) >= max_restarts:
+            write_process_status_file( external_id=gsmid, external_id_type='GEO', process_status=process_status )
 
     sample_queue.write_local_queue()
     return
@@ -512,7 +522,7 @@ def transfer_to_server():
     print('rsync data running:',datetime.datetime.now(),file=fp)
  
     for gsmid,sample_info in samples_to_process.items():
-        if chips_check_complete_check(gsmid) == True and transfer_complete_check(gsmid) == False:
+        if transfer_complete_check(gsmid) == False:
 
             # check number of jobs in queue
             cluster_status.get_jobs_in_queue() 
@@ -526,29 +536,32 @@ def transfer_to_server():
             if n_rsync_jobs >= max_data_rsync:
                 break
 
-            jobname = f'{gsmid}_data_rsync'
-            if cluster_status.is_job_name_in_queue(jobname) == True:
-                continue 
+            # process_status_files is written on success or when giving up
+            if (chips_check_complete_check(gsmid) or 
+                process_status_file_check(gsmid)):
 
-            sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], gsmid)
-            log_path = os.path.join( sample_path, f'data_rsync_log_{gsmid}.txt' )
-            sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
-            cmd = f'python file_transfer_to_server.py -c {configpath} -i {gsmid} -s {server}'
+                jobname = f'{gsmid}_data_rsync'
+                if cluster_status.is_job_name_in_queue(jobname) == True:
+                    continue 
 
-            if not DEBUG:
-                print(f'rsync {gsmid}:',datetime.datetime.now(),file=fp)
-                sbatch_cmd = f'python sbatch_header.py --cmd "{cmd}" --time 3600 --mem 1000 --partition {partition} --jobname {jobname} --sbatchfile {sbatch_path} --log {log_path} --submit'
-                subprocess.run(sbatch_cmd,shell=True)
-            else:
-                print(cmd)
+                sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], gsmid)
+                log_path = os.path.join( sample_path, f'data_rsync_log_{gsmid}.txt' )
+                sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
+                cmd = f'python file_transfer_to_server.py -c {configpath} -i {gsmid} -s {server}'
 
-            time.sleep(10) 
-            print(datetime.datetime.now())
-            fp.flush()
+                if not DEBUG:
+                    print(f'rsync {gsmid}:',datetime.datetime.now(),file=fp)
+                    sbatch_cmd = f'python sbatch_header.py --cmd "{cmd}" --time 3600 --mem 1000 --partition {partition} --jobname {jobname} --sbatchfile {sbatch_path} --log {log_path} --submit'
+                    subprocess.run(sbatch_cmd,shell=True)
+                else:
+                    print(cmd)
+
+                time.sleep(10) 
+                print(datetime.datetime.now())
+                fp.flush()
 
     fp.close()
     return 
-
 
 
 @asynch

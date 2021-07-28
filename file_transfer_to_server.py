@@ -171,31 +171,50 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
 def transfer_to_server(sample_id,attempts=5):
     sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'dataset{sample_id}')
     sample_md5_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}.md5')
-    sample_id_stub = sample_id[:-3]
+    sample_status_path = os.path.join( Config.data_collection_runs,
+        sample_id, Config.cistrome_result, f'dataset{external_id}_status.json' )
+ 
     auth_mode = Config.auth_mode
+    if auth_mode == 'google_cloud':
+        sample_id_stub = sample_id[:-3]
+    else:
+        sample_id_stub = None
+
+    rsync_for_auth_mode = {
+        'password': rsync_to_passwd_auth_server,
+        'key': rsync_to_key_auth_server,
+        'password_google': rsync_to_google_authenticated_server,
+        'google_cloud': rsync_to_google_cloud_server
+    } 
+
+    status = False
+    md5_status = False
+    stat_status = False 
  
     for i in range(attempts):
         if DEBUG == True:
             print(sample_path)
 
-        if auth_mode == 'password':
-            status     = rsync_to_passwd_auth_server(sample_path)
-            md5_status = rsync_to_passwd_auth_server(sample_md5_path)
-        elif auth_mode == 'key':
-            status     = rsync_to_key_auth_server(sample_path)
-            md5_status = rsync_to_key_auth_server(sample_md5_path)
-        elif auth_mode == 'password_google':
-            status     = rsync_to_google_authenticated_server(sample_path)
-            md5_status = rsync_to_google_authenticated_server(sample_md5_path)
-        elif auth_mode == 'google_cloud':
-            status     = rsync_to_google_cloud_server(sample_path, sample_id_stub = sample_id_stub )
-            md5_status = rsync_to_google_cloud_server(sample_md5_path, sample_id_stub = sample_id_stub )
-        else:
-            status = False
-            md5_status = False
+        if sample_id_stub:
+            # The status file exists whether or not the run completed
+            stat_status = rsync_for_auth_mode[auth_mode](sample_status_path)
+            # If the md5 exists the sample also exists
+            if os.path.exists(sample_md5_path):
+                status      = rsync_for_auth_mode[auth_mode](sample_path)
+                md5_status  = rsync_for_auth_mode[auth_mode](sample_md5_path)
 
-        if status == True and md5_status == True:
-            break
+        else: 
+            stat_status = rsync_for_auth_mode[auth_mode](sample_status_path, sample_id_stub=sample_id_stub)
+            if os.path.exists(sample_md5_path):
+                status      = rsync_for_auth_mode[auth_mode](sample_path, sample_id_stub=sample_id_stub)
+                md5_status  = rsync_for_auth_mode[auth_mode](sample_md5_path, sample_id_stub=sample_id_stub)
+
+        if os.path.exists(sample_md5_path):
+            if status == True and md5_status == True and stat_status == True:
+                break
+        else:
+            if stat_status == True:
+                break
 
     return status
 
