@@ -1,3 +1,9 @@
+"""
+This file contains functions used to check each file in a directory structure.
+The structure and check type for each file are specified in a yaml file.
+See check_chips.py for its application.
+"""
+
 import os
 import sys
 import yaml
