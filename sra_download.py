@@ -5,14 +5,15 @@
 # @date: July 2021
 # ================================
 
-import os, sys
-#import urllib.request
+import argparse
+import configparser
+import os
+from pathlib import Path
 import requests
 import re
-import argparse
 import subprocess
-import configparser
-from pathlib import Path
+import sys
+
 from cistrome_logger import cistrome_logger
 
 TIMEOUT = 10

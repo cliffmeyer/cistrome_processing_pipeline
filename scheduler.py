@@ -239,7 +239,7 @@ def download_from_sra():
 
 def process_status_file_check(external_id):
     chips_run_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
-    cistrome_path = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] ) 
+    cistrome_path = os.path.join( chips_run_path, Config.sys_config['paths']['cistrome_result'] ) 
     process_status_path = os.path.join( cistrome_path, f'dataset{external_id}_status.json' )
     return os.path.exists(process_status_path) 
 
@@ -367,6 +367,8 @@ def clean_up_failed_samples():
         if sample_queue.get_sample_restart_count(sample_id=external_id) >= max_restarts:
             # only write after sample is given up
             write_process_status_file( external_id=external_id, external_id_type='GEO', process_status=process_status )
+            # update process_status in local queue
+            sample_queue.set_sample_process_status( sample_id=external_id, process_status=process_status )
 
     sample_queue.write_local_queue()
     return
@@ -508,6 +510,8 @@ def check_chips_results():
         if chips_check_complete_check(external_id):
             process_status = 'COMPLETE'
             write_process_status_file( external_id=external_id, external_id_type='GEO', process_status=process_status )
+            # update process_status in local queue
+            sample_queue.set_sample_process_status( sample_id=external_id, process_status=process_status )
 
     return 
 
@@ -793,7 +797,7 @@ class Config():
 
 
 @asynch
-@schedule( event_sched['test'], interval=60*60)
+@schedule( event_sched['test'], interval=HOUR)
 def test():
     configpath = Config.configpath
     with open('test_schedule_check.txt','a') as fp:

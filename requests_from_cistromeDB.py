@@ -1,10 +1,13 @@
-import urllib.request
-import urllib.parse
-import json
-import configparser
 import argparse
+import configparser
+import json
+import requests
+#import urllib.request
+#import urllib.parse
 import os
+from threading import Lock
 
+TIMEOUT = 10
 
 class SystemConfig():
 
@@ -22,6 +25,7 @@ class SystemConfig():
 class SampleQueue():
 
     def __init__(self,system_config_filename):
+        self.lock = Lock() 
         tmp_conf = SystemConfig(system_config_filename)
         tmp_conf.read_config()
         self.sys_conf = tmp_conf.config
@@ -31,15 +35,15 @@ class SampleQueue():
         baseurl = self.sys_conf['home_server']['domain']
         baseurl = f'http://{baseurl}/'
         query = self.sys_conf['home_server']['requested_sample_file']
-        url = urllib.parse.quote(baseurl+query,safe=':)(][&?=/')
+        #url = urllib.parse.quote(baseurl+query,safe=':)(][&?=/')
         #print(url)
-        request = urllib.request.Request(url)
+        #request = urllib.request.Request(url)
 
-        with urllib.request.urlopen(request) as response:
-            docString = response.read()
-            docString = docString.decode('UTF8')
-            self.requested_samples = json.loads(docString)
-            #print(self.requested_samples)
+        url = requests.utils.quote(baseurl+query, safe=':)(][&?=/')
+        response = requests.get(url,timeout=TIMEOUT)
+        response.encoding = 'utf-8'
+        docstring = response.text
+        self.requested_samples = json.loads(docstring)
 
 
     def read_local_queue(self):
@@ -59,6 +63,16 @@ class SampleQueue():
         return self.local_samples['samples_to_be_processed']
  
 
+    def set_sample_process_status(self,sample_id='',process_status=''):
+        """
+        Set sample process status.
+        """
+        local_queue = self.get_local_queue()
+        if sample_id in local_queue:
+            sample = self.local_samples['samples_to_be_processed'][sample_id]
+            sample['process_status'] = process_status
+
+
     # set dictionary of run events to empty
     def clear_sample_info(self,sample_id='',info_key=''):
         local_queue = self.get_local_queue()
@@ -69,6 +83,9 @@ class SampleQueue():
 
 
     def set_sample_info(self,sample_id='',info_key='',info_val={}):
+        """
+        Set sample run information: dictionary of run ids on cluster and status.
+        """
         local_queue = self.get_local_queue()
         info_key = info_key.upper()
         if sample_id in local_queue:
