@@ -1,0 +1,16 @@
+{"samples_to_be_processed":
+       { 
+          "GSM2527388":	{"CistromeID": "100083", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2527388"},
+          "GSM2916012":	{"CistromeID": "110062", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2916012"}, 
+          "GSM3669510": {"CistromeID": "118006", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM3669510"}, 
+          "GSM3831293": {"CistromeID": "127741", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM3831293"}, 
+          "GSM3791758": {"CistromeID": "131008", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM3791758"}, 
+          "GSM4146636": {"CistromeID": "135206", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM4146636"}, 
+          "GSM2496517": {"CistromeID": "138045", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2496517"}, 
+          "GSM2746621": {"CistromeID": "140028", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2746621"}, 
+          "GSM2837611": {"CistromeID": "144139", "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2837611"}, 
+          "GSM2400529": {"CistromeID": "66603",  "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2400529"}, 
+          "GSM2258812": {"CistromeID": "83382",  "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM2258812"}, 
+          "GSM3514952": {"CistromeID": "99715",  "species": "hg38", "sampletype": "H3K27ac", "broad": "false",  "GSMID": "GSM3514952"}
+       }
+}

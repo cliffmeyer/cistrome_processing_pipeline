@@ -9,11 +9,12 @@ import os
 class SystemConfig():
 
     def __init__(self,config_filename):
+        print( config_filename)
         self.config_filename = config_filename
         self.read_config()
 
     def read_config(self):
-        self.config = configparser.ConfigParser()
+        self.config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         self.config.optionxform=str
         self.config.read(self.config_filename)
 

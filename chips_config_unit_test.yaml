@@ -1,0 +1,13 @@
+CistromeApi: true
+Cistrome_path: /n/holyscratch01/xiaoleliu_lab/cistrome_data_collection/GSM817182/analysis
+aligner: bwa
+assembly: hg38
+cnv_analysis: false
+cutoff: 0
+metasheet: /n/holyscratch01/xiaoleliu_lab/cistrome_data_collection/GSM817182/metasheet.csv
+motif: mdseqpos
+output_path: /n/holyscratch01/xiaoleliu_lab/cistrome_data_collection/GSM817182/analysis
+ref: /n/home08/cliffmeyer/projects/cistrome_chips/ref.yaml
+samples:
+  GSM817182:
+  - /n/holyscratch01/xiaoleliu_lab/ncbi/fastq/GSM817182.fastq

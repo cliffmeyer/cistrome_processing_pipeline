@@ -1,14 +1,24 @@
-import sched
-import time
-import datetime
-from functools import wraps
-from threading import Thread
-import subprocess
-import os
-import glob
+"""
+This script controls the entire processing pipeline from raw data download to 
+chips pipeline execution and data transfer to backup and to the home server.
+The script runs jobs asynchronously and submits larger jobs to other nodes by SLURM sbatch.
+This script is run on a work node like this: 
+    sbatch schedule.sbatch
+"""
+
 import argparse
 import configparser
+import datetime
+from functools import wraps
+import glob
+import json
+import os
 import re
+import sched
+import subprocess
+import time
+from threading import Thread
+
 import requests_from_cistromeDB
 import cluster_stats
 
@@ -16,15 +26,22 @@ DEBUG = False
 
 START_HOUR = 11
 
+MINUTE = 60
+HOUR = 60*MINUTE
+DAY = 24*HOUR
+
+# This is the schedule for the steps in the processing pipeline.
+# setup_and_run_chips is the main and longest phase.
+# transfer_to_server and transfer_to_backup_server can be bottlenecks depending on network bandwidth and traffic.
 event_sched = {
-               'update_samples_in_local_queue':  { 'start_time': {'hr':START_HOUR,'min':10,'sec':0}, 'interval': 24*60*60 },
-               'download_from_sra':              { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': 60*60    },
-               'setup_and_run_chips':            { 'start_time': {'hr':START_HOUR,'min':15,'sec':0}, 'interval': 30*60    },
-               'check_chips_results':            { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': 60*60    },
-               'transfer_to_server':             { 'start_time': {'hr':START_HOUR,'min':35,'sec':0}, 'interval': 60*60    },
-               'transfer_to_backup_server':      { 'start_time': {'hr':20,'min':30,'sec':0}, 'interval': 24*60*60    },
-               'clean_up_after_completion':      { 'start_time': {'hr':START_HOUR,'min':55,'sec':0}, 'interval': 60*60    },
-               'test':                           { 'start_time': {'hr':START_HOUR,'min':22,'sec':0}, 'interval': 10*60    }
+    'update_samples_in_local_queue':  { 'start_time': {'hr':START_HOUR,'min':10,'sec':0}, 'interval': DAY },
+    'download_from_sra':              { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': HOUR },
+    'setup_and_run_chips':            { 'start_time': {'hr':START_HOUR,'min':15,'sec':0}, 'interval': 30*MINUTE },
+    'check_chips_results':            { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': HOUR },
+    'transfer_to_server':             { 'start_time': {'hr':START_HOUR,'min':35,'sec':0}, 'interval': HOUR },
+    'transfer_to_backup_server':      { 'start_time': {'hr':20,'min':30,'sec':0}, 'interval': DAY },
+    'clean_up_after_completion':      { 'start_time': {'hr':START_HOUR,'min':55,'sec':0}, 'interval': HOUR },
+    'test':                           { 'start_time': {'hr':START_HOUR,'min':22,'sec':0}, 'interval': 10*MINUTE }
 }
 
 
@@ -95,7 +112,6 @@ def match_sbatch_history(suffix='',jobs_name=[],jobs_status=[],jobs_id=[]):
         if not isinstance(match,type(None)):
             job_type = suffix
             sampleid = match.group(1)
-            #job_status[sampleid] = {'type':job_type,'status':status}
             job_status[sampleid] = {'type':job_type, 'status':{job_id:status}}
 
     return job_status
@@ -104,15 +120,17 @@ def match_sbatch_history(suffix='',jobs_name=[],jobs_status=[],jobs_id=[]):
 @asynch
 @schedule( event_sched['update_samples_in_local_queue']['start_time'],interval=event_sched['update_samples_in_local_queue']['interval'])
 def update_samples_in_local_queue():
+    """
+    Check the requested sample file on the home server (via http) and update local list.
+    """
     configpath = Config.configpath
     sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
     sample_queue.update_local_queue()
 
 
-def fastq_check(gsmid):
+def fastq_check(external_id):
     fastq_path = Config.sys_config['paths']['fastq']
-    sample_check_path = os.path.join(fastq_path,f'{gsmid}.check')
-    #print(sample_check_path)
+    sample_check_path = os.path.join(fastq_path,f'{external_id}.check')
     return os.path.exists(sample_check_path)         
 
 
@@ -161,50 +179,50 @@ def download_from_sra():
 
     fp = open('schedule_sra_log.txt','a')
 
-    for gsmid,sample_info in samples_to_process.items():
+    for external_id,sample_info in samples_to_process.items():
 
         # don't download if there are already enough files to process
         if get_fastq_sample_number() > max_fastq_file_number:
             print('too many fastq files', get_fastq_sample_number(), max_fastq_file_number, file=fp)
             break
 
-        print(gsmid,file=fp)
+        print(external_id,file=fp)
 
-        log_path = get_sra_log_path(gsmid)
+        log_path = get_sra_log_path(external_id)
 
         # check results have not been sent back already
-        if transfer_complete_check(gsmid) == True:
+        if transfer_complete_check(external_id) == True:
             continue
  
         # check fastq check-file does not exist
-        if fastq_check(gsmid) == True:
+        if fastq_check(external_id) == True:
             continue
 
         # limit number of restarts
-        if sample_queue.get_sample_restart_count(sample_id=gsmid) >= max_restarts:
+        if sample_queue.get_sample_restart_count(sample_id=external_id) >= max_restarts:
             continue
 
         # limit number of download tries
-        if sample_queue.get_sample_status_count(sample_id=gsmid,info_key='SRA') > max_fails:
+        if sample_queue.get_sample_status_count(sample_id=external_id,info_key='SRA') > max_fails:
             continue
 
         # check number of jobs pending
         cluster_status.get_jobs_in_queue()
         if (cluster_status.get_pending_job_count() > int(Config.sys_config['process_server']['max_jobs_pending'])):
-            print(gsmid,'too many jobs pending', cluster_status.get_pending_job_count(), int(Config.sys_config['process_server']['max_jobs_pending']), file=fp)
+            print(external_id,'too many jobs pending', cluster_status.get_pending_job_count(), int(Config.sys_config['process_server']['max_jobs_pending']), file=fp)
             break
 
         # check number of jobs running
         if (cluster_status.get_running_job_count() > int(Config.sys_config['process_server']['max_jobs_running'])):
-            print(gsmid,'too many jobs running', cluster_status.get_running_job_count(), int(Config.sys_config['process_server']['max_jobs_running']), file=fp)
+            print(external_id,'too many jobs running', cluster_status.get_running_job_count(), int(Config.sys_config['process_server']['max_jobs_running']), file=fp)
             break
 
         # check job is not already in queue
-        jobname = f'{gsmid}_sra'
-        if cluster_status.is_job_name_in_queue(f'{gsmid}_sra') == True:  # SRA download job name: {ID}_sra
+        jobname = f'{external_id}_sra'
+        if cluster_status.is_job_name_in_queue(f'{external_id}_sra') == True:  # SRA download job name: {ID}_sra
             continue       
 
-        cmd = f'python sra_download.py -c {configpath} -i {gsmid}'
+        cmd = f'python sra_download.py -c {configpath} -i {external_id}'
 
         sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
 
@@ -219,38 +237,42 @@ def download_from_sra():
     fp.close()
 
 
-def process_status_file_check(gsmid):
-    chips_run_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
+def process_status_file_check(external_id):
+    chips_run_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
     cistrome_path = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] ) 
     process_status_path = os.path.join( cistrome_path, f'dataset{external_id}_status.json' )
     return os.path.exists(process_status_path) 
 
 
-def chips_complete_check(gsmid):
+def chips_complete_check(external_id):
     chips_run_path = Config.sys_config['paths']['data_collection_runs']
-    sample_check_path = os.path.join(chips_run_path,f'{gsmid}/analysis/logs/empty_file_list.txt')
+    sample_check_path = os.path.join(chips_run_path,f'{external_id}/analysis/logs/empty_file_list.txt')
     return os.path.exists(sample_check_path) 
 
 
-def chips_check_complete_check(gsmid):
+def chips_check_complete_check(external_id):
     chips_run_path = Config.sys_config['paths']['data_collection_runs']
-    sample_check_path = os.path.join(chips_run_path,f'{gsmid}/cistrome/{gsmid}.md5')
+    sample_check_path = os.path.join(chips_run_path,f'{external_id}/cistrome/{external_id}.md5')
     return os.path.exists(sample_check_path) 
 
 
-def transfer_complete_check(gsmid):
+def transfer_complete_check(external_id):
     chips_run_path = Config.sys_config['paths']['data_collection_runs']
-    sample_check_path = os.path.join(chips_run_path,f'{gsmid}/{gsmid}_rsync_ok.txt')
+    sample_check_path = os.path.join(chips_run_path,f'{external_id}/{external_id}_rsync_ok.txt')
     return os.path.exists(sample_check_path) 
 
 
-def transfer_to_backup_complete_check(gsmid):
+def transfer_to_backup_complete_check(external_id):
     chips_run_path = Config.sys_config['paths']['data_collection_runs']
-    sample_check_path = os.path.join(chips_run_path,f'{gsmid}/{gsmid}_backup_ok.txt')
+    sample_check_path = os.path.join(chips_run_path,f'{external_id}/{external_id}_backup_ok.txt')
     return os.path.exists(sample_check_path) 
 
 
 def update_cluster_runstats_in_local_queue():
+    """
+    Get stats from the SLURM system and parse the output to get 
+    numbers of different stage jobs running or in the queue.
+    """
     configpath = Config.configpath
     sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
     sample_queue.read_local_queue()
@@ -273,8 +295,17 @@ def update_cluster_runstats_in_local_queue():
 
     sample_queue.write_local_queue() 
 
-# TODO check 
+
 def write_process_status_file( external_id='', external_id_type='GEO', process_status=''):
+    """
+    Writes the process status to a file:
+       dataset{external_id}_status.json
+    This file, is transferred to the home server and used to update the 
+    process status in the Cistrome database.
+    Json file format must be compatible with cistrome.internal_interfaces.
+    Process status must be compatibible with cistrome database models.py
+    """
+
     samples_json = {'samples':[
             { 'id':None,
               'external_id':external_id,
@@ -283,14 +314,22 @@ def write_process_status_file( external_id='', external_id_type='GEO', process_s
             }]
         }
 
-    sample_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
-    cistrome_path = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] ) 
-    filename = os.path.join( cistrome_path, f'dataset{external_id}_status.json' )
+    sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
+    cistrome_path = Config.sys_config['paths']['cistrome_result']
+    filename = os.path.join( sample_path, cistrome_path, f'dataset{external_id}_status.json' )
     with open(filename,'w') as fp:
         json.dump( samples_json, fp )
 
 
 def clean_up_failed_samples():
+    """
+    Runs that fail on multiple retries can sometime be rescued but starting the run from 
+    scratch. 
+    After runs have failed *max_fails* times on some step, cleanup is triggered.
+    Restarting from scratch is allowed up to *max_restarts* times, after which the sample is abandoned.
+    At this point the process_status file is written with *DOWNLOAD_ERROR* or *PROCESSING_ERROR* status.
+    """
+
     configpath = Config.configpath
     partition = Config.sys_config['process_server']['partition']
     max_fails = int(Config.sys_config['process_server']['max_fails'])
@@ -301,32 +340,33 @@ def clean_up_failed_samples():
     sample_queue.read_local_queue() 
     samples_to_process = sample_queue.get_local_queue()
  
-    for gsmid,sample_info in samples_to_process.items(): 
-        if (sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='SRA') >= max_fails:
-            process_status = 'DOWNLOAD_ERROR' #TODO
-        elif sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='CHIPS') >= max_fails:
-            process_status = 'PROCESSING_ERROR' #TODO
-        elif sample_queue.get_sample_status_count(sample_id=gsmid,info_key='CHIPS_CHECK') >= max_fails):
-            process_status = 'PROCESSING_ERROR' # TODO 
+    for external_id,sample_info in samples_to_process.items(): 
+        if sample_queue.get_sample_fail_count(sample_id=external_id,info_key='SRA') >= max_fails:
+            process_status = 'DOWNLOAD_ERROR'
+        elif sample_queue.get_sample_fail_count(sample_id=external_id,info_key='CHIPS') >= max_fails:
+            process_status = 'PROCESSING_ERROR'
+        elif sample_queue.get_sample_status_count(sample_id=external_id,info_key='CHIPS_CHECK') >= max_fails:
+            process_status = 'PROCESSING_ERROR'
             # NOTE: testing to see how many time chips_check has run rather than has failed
             # if it is running many times there is a problem with the sample 
-            # sample_queue.get_sample_fail_count(sample_id=gsmid,info_key='CHIPS_CHECK') >= max_fails):
+            # sample_queue.get_sample_fail_count(sample_id=external_id,info_key='CHIPS_CHECK') >= max_fails):
         else:
-            process_status = 'UNPROCESSED' # TODO
+            process_status = 'UNPROCESSED'
     
         if process_status in ['DOWNLOAD_ERROR','PROCESSING_ERROR']:
-            print(f'cleaning up failed sample {gsmid}') 
-            sample_queue.clear_sample_info( sample_id=gsmid, info_key='SRA')
-            sample_queue.clear_sample_info( sample_id=gsmid, info_key='CHIPS')
-            sample_queue.clear_sample_info( sample_id=gsmid, info_key='CHIPS_CHECK')
-            delete_sbatch_files(gsmid)
-            delete_sra_files(gsmid)
-            delete_fastq_files(gsmid)
-            delete_result_files(gsmid,complete=False)
-            sample_queue.increment_sample_restart_count(sample_id=gsmid)
+            print(f'cleaning up failed sample {external_id}') 
+            sample_queue.clear_sample_info( sample_id=external_id, info_key='SRA')
+            sample_queue.clear_sample_info( sample_id=external_id, info_key='CHIPS')
+            sample_queue.clear_sample_info( sample_id=external_id, info_key='CHIPS_CHECK')
+            delete_sbatch_files(external_id)
+            delete_sra_files(external_id)
+            delete_fastq_files(external_id)
+            delete_result_files(external_id,complete=False)
+            sample_queue.increment_sample_restart_count(sample_id=external_id)
  
-        if sample_queue.get_sample_restart_count(sample_id=gsmid) >= max_restarts:
-            write_process_status_file( external_id=gsmid, external_id_type='GEO', process_status=process_status )
+        if sample_queue.get_sample_restart_count(sample_id=external_id) >= max_restarts:
+            # only write after sample is given up
+            write_process_status_file( external_id=external_id, external_id_type='GEO', process_status=process_status )
 
     sample_queue.write_local_queue()
     return
@@ -335,6 +375,11 @@ def clean_up_failed_samples():
 @asynch
 @schedule( event_sched['setup_and_run_chips']['start_time'], interval=event_sched['setup_and_run_chips']['interval'])
 def setup_and_run_chips():
+    """
+    Find samples that need processing.
+    Check cluster resources and load.
+    Set up directories, config files and running CHIPs.
+    """
 
     fp = open('schedule_chips_log.txt','a')
     print('job stat update running:',datetime.datetime.now(),file=fp)
@@ -357,32 +402,32 @@ def setup_and_run_chips():
     samples_to_process = sample_queue.get_local_queue()
  
     # TODO confirm consistency between words used to specify chips and types in sample request file
-    for gsmid,sample_info in samples_to_process.items():
+    for external_id,sample_info in samples_to_process.items():
  
-        #print('chips loop',gsmid,file=fp)
-        if sample_queue.get_sample_restart_count(sample_id=gsmid) >= max_restarts:
+        #print('chips loop',external_id,file=fp)
+        if sample_queue.get_sample_restart_count(sample_id=external_id) >= max_restarts:
             continue
 
         # check fastq check-file exists
-        if fastq_check(gsmid) == False:
+        if fastq_check(external_id) == False:
             continue
 
         # check chips run is not complete 
-        if chips_complete_check(gsmid) == True:
+        if chips_complete_check(external_id) == True:
             continue
 
         # check results have not been sent back already
-        if transfer_complete_check(gsmid) == True:
+        if transfer_complete_check(external_id) == True:
             continue
 
         # check number of jobs in queue
         cluster_status.get_jobs_in_queue()
         if cluster_status.get_pending_job_count() > max_jobs_pending:
-            print(gsmid,'too many jobs pending: break chips submission',file=fp) 
+            print(external_id,'too many jobs pending: break chips submission',file=fp) 
             break
 
         # check job is not already in queue
-        if cluster_status.is_job_name_in_queue(f'{gsmid}_chips') == True:  # chips job name: {ID}_chips
+        if cluster_status.is_job_name_in_queue(f'{external_id}_chips') == True:  # chips job name: {ID}_chips
             continue            
  
         species = sample_info['species']
@@ -394,14 +439,14 @@ def setup_and_run_chips():
 
         # Improve place of Lookup
         sampletype = sampletype_lookup[sampletype.lower()]
-        cmd = f'python chips_job_submission.py -c {configpath} --gsm {gsmid} --species {species} --sampletype {sampletype} {broad} --submit'
+        cmd = f'python chips_job_submission.py -c {configpath} --gsm {external_id} --species {species} --sampletype {sampletype} {broad} --submit'
         if DEBUG:
-            print(gsmid)
+            print(external_id)
             print(sample_info)
             print(cmd)
         else:
             subprocess.run(cmd,shell=True)
-            print(gsmid,datetime.datetime.now(),file=fp)
+            print(external_id,datetime.datetime.now(),file=fp)
             time.sleep(1)
 
     fp.close()
@@ -419,25 +464,25 @@ def check_chips_results():
     sample_queue.read_local_queue() 
     samples_to_process = sample_queue.get_local_queue()
 
-    for gsmid,sample_info in samples_to_process.items():
+    for external_id,sample_info in samples_to_process.items():
 
-        sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
-        log_path    = os.path.join( sample_path, f'chips_check_log_{gsmid}.txt' )
+        sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
+        log_path    = os.path.join( sample_path, f'chips_check_log_{external_id}.txt' )
         chips_yaml  = os.path.join( sample_path,'config.yaml')
-        jobname     = f'{gsmid}_chips_check'
+        jobname     = f'{external_id}_chips_check'
         sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
 
-        print(gsmid)
+        print(external_id)
         # check results have not been sent back already
-        if transfer_complete_check(gsmid) == True:
+        if transfer_complete_check(external_id) == True:
             continue
 
         # check chips run is complete 
-        if chips_complete_check(gsmid) == False:
+        if chips_complete_check(external_id) == False:
             continue
 
         # check chips run has not been checked already 
-        if chips_check_complete_check(gsmid) == True:
+        if chips_check_complete_check(external_id) == True:
             continue
 
         # check number of jobs in queue
@@ -449,7 +494,7 @@ def check_chips_results():
         if cluster_status.is_job_name_in_queue(jobname) == True:  # chips check job name: {ID}_chips_check
             continue            
 
-        cmd = f'python check_chips.py -c {configpath} -i {gsmid}'
+        cmd = f'python check_chips.py -c {configpath} -i {external_id}'
 
         if DEBUG:
             sbatch_cmd = f'python sbatch_header.py --cmd "{cmd}" --time 480 --mem 2000 --partition {partition} --jobname {jobname} --sbatchfile {sbatch_path} --log {log_path}'
@@ -460,46 +505,11 @@ def check_chips_results():
         time.sleep(1)
         print(datetime.datetime.now())
 
-        if chips_check_complete_check(gsmid):
+        if chips_check_complete_check(external_id):
             process_status = 'COMPLETE'
-            write_process_status_file( external_id=gsmid, external_id_type='GEO', process_status=process_status )
+            write_process_status_file( external_id=external_id, external_id_type='GEO', process_status=process_status )
 
     return 
-
-
-# using transfer_to_data instead of transfer_to_home
-#@asynch
-#@schedule( event_sched['transfer_to_home_server']['start_time'], interval=event_sched['transfer_to_home_server']['interval'])
-#def transfer_to_home_server():
-#
-#    configpath   = Config.configpath
-#    sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
-#    sample_queue.read_local_queue() 
-#    samples_to_process = sample_queue.get_local_queue()
-#
-#    for gsmid,sample_info in samples_to_process.items():
-#        if chips_check_complete_check(gsmid) == True and transfer_complete_check(gsmid) == False:
-#            sample_path        = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
-#            rsync_ok           = os.path.join( sample_path,f'{gsmid}_rsync_ok.txt' )
-#            cistrome_path      = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] )
-#            home_server_path   = Config.sys_config['home_server']['home_server_path']
-#            home_server_user   = Config.sys_config['home_server']['home_server_user']
-#            home_server_domain = Config.sys_config['home_server']['home_server_domain']
-#            home_server_port   = Config.sys_config['home_server']['home_server_port']
-#            transfer_cmd  = f'rsync -aPL -e "ssh -p {home_server_port}" {cistrome_path} {home_server_user}@{home_server_domain}:{home_server_path} && touch {rsync_ok}'
-#            fp_stdout = open(os.path.join(sample_path,'rsync_stdout.txt'),'w')
-#            fp_stderr = open(os.path.join(sample_path,'rsync_stderr.txt'),'w')
-#            if DEBUG == False:
-#                subprocess.call(transfer_cmd,shell=True,stdout=fp_stdout,stderr=fp_stderr)
-#                time.sleep(1)
-#            else:
-#                print(transfer_cmd)
-#                pass
-#            fp_stdout.close()
-#            fp_stderr.close()
-#
-#    return 
-
 
 
 @asynch
@@ -521,8 +531,8 @@ def transfer_to_server():
     fp = open('schedule_rsync_data_log.txt','a')
     print('rsync data running:',datetime.datetime.now(),file=fp)
  
-    for gsmid,sample_info in samples_to_process.items():
-        if transfer_complete_check(gsmid) == False:
+    for external_id,sample_info in samples_to_process.items():
+        if transfer_complete_check(external_id) == False:
 
             # check number of jobs in queue
             cluster_status.get_jobs_in_queue() 
@@ -537,20 +547,20 @@ def transfer_to_server():
                 break
 
             # process_status_files is written on success or when giving up
-            if (chips_check_complete_check(gsmid) or 
-                process_status_file_check(gsmid)):
+            if (chips_check_complete_check(external_id) or 
+                process_status_file_check(external_id)):
 
-                jobname = f'{gsmid}_data_rsync'
+                jobname = f'{external_id}_data_rsync'
                 if cluster_status.is_job_name_in_queue(jobname) == True:
                     continue 
 
-                sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], gsmid)
-                log_path = os.path.join( sample_path, f'data_rsync_log_{gsmid}.txt' )
+                sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], external_id)
+                log_path = os.path.join( sample_path, f'data_rsync_log_{external_id}.txt' )
                 sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
-                cmd = f'python file_transfer_to_server.py -c {configpath} -i {gsmid} -s {server}'
+                cmd = f'python file_transfer_to_server.py -c {configpath} -i {external_id} -s {server}'
 
                 if not DEBUG:
-                    print(f'rsync {gsmid}:',datetime.datetime.now(),file=fp)
+                    print(f'rsync {external_id}:',datetime.datetime.now(),file=fp)
                     sbatch_cmd = f'python sbatch_header.py --cmd "{cmd}" --time 3600 --mem 1000 --partition {partition} --jobname {jobname} --sbatchfile {sbatch_path} --log {log_path} --submit'
                     subprocess.run(sbatch_cmd,shell=True)
                 else:
@@ -586,8 +596,8 @@ def transfer_to_backup_server():
     fp = open('schedule_rsync_backup_log.txt','a')
     print('rsync backup running:',datetime.datetime.now(),file=fp)
  
-    for gsmid,sample_info in samples_to_process.items():
-        if chips_check_complete_check(gsmid) == True and transfer_to_backup_complete_check(gsmid) == False:
+    for external_id,sample_info in samples_to_process.items():
+        if chips_check_complete_check(external_id) == True and transfer_to_backup_complete_check(external_id) == False:
 
             # check number of jobs in queue
             cluster_status.get_jobs_in_queue() 
@@ -602,26 +612,26 @@ def transfer_to_backup_server():
             if n_backup_rsync_jobs >= max_backup_rsync:
                 break
 
-            jobname = f'{gsmid}_backup_rsync'
+            jobname = f'{external_id}_backup_rsync'
             if cluster_status.is_job_name_in_queue(jobname) == True:
                 continue 
 
-            sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], gsmid)
-            log_path = os.path.join( sample_path, f'backup_rsync_log_{gsmid}.txt' )
+            sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], external_id)
+            log_path = os.path.join( sample_path, f'backup_rsync_log_{external_id}.txt' )
             sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
-            cmd = f'python file_transfer_to_server.py -c {configpath} -i {gsmid} -s {server}'
+            cmd = f'python file_transfer_to_server.py -c {configpath} -i {external_id} -s {server}'
 
             if not DEBUG:
-                print(f'rsync {gsmid}:',datetime.datetime.now(),file=fp)
+                print(f'rsync {external_id}:',datetime.datetime.now(),file=fp)
                 #subprocess.check_call(cmd,shell=True)
-                #print(f'rsync {gsmid} complete:',datetime.datetime.now(),file=fp)
+                #print(f'rsync {external_id} complete:',datetime.datetime.now(),file=fp)
                 sbatch_cmd = f'python sbatch_header.py --cmd "{cmd}" --time 3600 --mem 1000 --partition {partition} --jobname {jobname} --sbatchfile {sbatch_path} --log {log_path} --submit'
                 subprocess.run(sbatch_cmd,shell=True)
 
             # track failure to backup
-            #if transfer_to_backup_complete_check(gsmid) == False:
+            #if transfer_to_backup_complete_check(external_id) == False:
             #    n_fails += 1
-            #    print(f'rsync {gsmid} failure {n_fails}:',datetime.datetime.now(),file=fp)
+            #    print(f'rsync {external_id} failure {n_fails}:',datetime.datetime.now(),file=fp)
             # reduce fail count on success 
             #elif n_fails > 0:
             #    n_fails -= 1
@@ -636,14 +646,14 @@ def transfer_to_backup_server():
     return 
 
 
-def get_sra_log_path(gsmid):
-    sra_log_path = os.path.join( Config.sys_config['paths']['sra'], f'sra_log_{gsmid}.txt' )
+def get_sra_log_path(external_id):
+    sra_log_path = os.path.join( Config.sys_config['paths']['sra'], f'sra_log_{external_id}.txt' )
     return sra_log_path
 
 
-def sra_paths_from_sra_log(gsmid):
+def sra_paths_from_sra_log(external_id):
     sra_path_list = []
-    sra_log_path = get_sra_log_path(gsmid)
+    sra_log_path = get_sra_log_path(external_id)
     print(sra_log_path)
  
     if os.path.exists(sra_log_path) == False:
@@ -656,9 +666,9 @@ def sra_paths_from_sra_log(gsmid):
     return sra_path_list
 
 
-def delete_sra_files(gsmid):
+def delete_sra_files(external_id):
     # delete SRA files
-    sra_path_list = sra_paths_from_sra_log(gsmid)
+    sra_path_list = sra_paths_from_sra_log(external_id)
     sra_path_string = ' '.join(sra_path_list)
     if len(sra_path_string) > 0 and os.path.exists(sra_path_string):
         delete_sra_cmd = f'rm {sra_path_string}'
@@ -671,21 +681,21 @@ def delete_sra_files(gsmid):
             pass
 
 
-def delete_fastq_files(gsmid):
+def delete_fastq_files(external_id):
     fastq_path = Config.sys_config['paths']['fastq']
 
-    if os.path.exists( os.path.join( fastq_path, f'{gsmid}.fastq' )):
-        fastq_file_path_list  = [os.path.join( fastq_path, f'{gsmid}.fastq' )]  
-    elif os.path.exists( os.path.join( fastq_path, f'{gsmid}_R1.fastq' )):
-        fastq_file_path_list  = [os.path.join( fastq_path, f'{gsmid}_R1.fastq' )]
-        fastq_file_path_list += [os.path.join( fastq_path, f'{gsmid}_R2.fastq' )]
+    if os.path.exists( os.path.join( fastq_path, f'{external_id}.fastq' )):
+        fastq_file_path_list  = [os.path.join( fastq_path, f'{external_id}.fastq' )]  
+    elif os.path.exists( os.path.join( fastq_path, f'{external_id}_R1.fastq' )):
+        fastq_file_path_list  = [os.path.join( fastq_path, f'{external_id}_R1.fastq' )]
+        fastq_file_path_list += [os.path.join( fastq_path, f'{external_id}_R2.fastq' )]
     else:
         fastq_file_path_list = []
 
     fastq_file_string = ' '.join(fastq_file_path_list)
 
-    if os.path.exists( os.path.join( fastq_path, f'{gsmid}.check' )):
-        fastq_check_path  = os.path.join( fastq_path, f'{gsmid}.check' )
+    if os.path.exists( os.path.join( fastq_path, f'{external_id}.check' )):
+        fastq_check_path  = os.path.join( fastq_path, f'{external_id}.check' )
     else:
         fastq_check_path = ''
 
@@ -700,8 +710,8 @@ def delete_fastq_files(gsmid):
             pass
 
 
-def delete_sbatch_files(gsmid):
-    jobname_list = [f'{gsmid}_sra',f'{gsmid}_chips',f'{gsmid}_chips_check']
+def delete_sbatch_files(external_id):
+    jobname_list = [f'{external_id}_sra',f'{external_id}_chips',f'{external_id}_chips_check']
     sbatch_path_list = [os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{elem}.sbatch') for elem in jobname_list]
     sbatch_path_string = ' '.join( [ elem for elem in sbatch_path_list if os.path.exists(elem)] )
     #sbatch_path_string = ' '.join(sbatch_path_list)
@@ -717,12 +727,12 @@ def delete_sbatch_files(gsmid):
             pass
 
 
-def delete_result_files(gsmid,complete=False):
-    sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid)
+def delete_result_files(external_id,complete=False):
+    sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id)
 
     if os.path.exists(sample_path):
         files_in_sample_path = os.path.join( sample_path, '*' )
-        rsync_ok    = os.path.join( sample_path,f'{gsmid}_rsync_ok.txt' )
+        rsync_ok    = os.path.join( sample_path,f'{external_id}_rsync_ok.txt' )
 
         # TODO 
         if complete == True: 
@@ -741,29 +751,32 @@ def delete_result_files(gsmid,complete=False):
 @asynch
 @schedule( event_sched['clean_up_after_completion']['start_time'], interval=event_sched['clean_up_after_completion']['interval'])
 def clean_up_after_completion():
+    """
+    Determine which samples are complete and delete related raw and processed data files.
+    """
 
     configpath   = Config.configpath
     sample_queue = requests_from_cistromeDB.SampleQueue(configpath)
     sample_queue.read_local_queue() 
     samples_to_process = sample_queue.get_local_queue()
 
-    for gsmid,sample_info in samples_to_process.items():
+    for external_id,sample_info in samples_to_process.items():
 
-        sample_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], gsmid  )
+        sample_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
         cistrome_path = os.path.join( sample_path, Config.sys_config['paths']['cistrome_result'] ) 
 
-        if gsmid == '':
-            gsmid = 'missing_id_do_not_delete_the_path'
+        if external_id == '':
+            external_id = 'missing_id_do_not_delete_the_path'
 
         # check transfer is complete and results have not yet been deleted
-        if (transfer_complete_check(gsmid) == True and 
-            transfer_to_backup_complete_check(gsmid) == True and 
+        if (transfer_complete_check(external_id) == True and 
+            transfer_to_backup_complete_check(external_id) == True and 
             os.path.exists(cistrome_path) == True):
 
-            delete_sra_files(gsmid)
-            delete_fastq_files(gsmid)
-            delete_sbatch_files(gsmid)
-            delete_result_files(gsmid,complete=True)
+            delete_sra_files(external_id)
+            delete_fastq_files(external_id)
+            delete_sbatch_files(external_id)
+            delete_result_files(external_id,complete=True)
 
     return 
 
@@ -773,7 +786,7 @@ class Config():
     sys_config = None
 
     def __init__(self,configpath):
-        Config.sys_config = configparser.ConfigParser()
+        Config.sys_config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
         Config.sys_config.optionxform=str
         Config.sys_config.read(configpath)
         Config.configpath = configpath

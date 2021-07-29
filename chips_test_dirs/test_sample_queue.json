@@ -1,0 +1,1 @@
+{"samples_to_be_processed": {"TEST0000000001": {"CistromeID": "000001", "species": "hg38", "sampletype": "histone", "broad": "false", "GSMID": "TEST0000000001", "SRA": {"12344": "RUNNING"}}, "TEST0000000002": {"CistromeID": "NA", "species": "hg38", "sampletype": "ATAC", "broad": "false", "GSMID": "TEST0000000002"}}}

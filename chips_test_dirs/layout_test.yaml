@@ -1,0 +1,9 @@
+- chips_test_dirs:
+    - file1.txt:
+        test_file1
+    - file2.txt:
+        test_file2
+    - level1:
+        - file(\w+).txt:
+            test_file3
+

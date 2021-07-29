@@ -6,13 +6,15 @@ import sra_download as sra
 import path_parser
 import filename_pattern_regex
 import requests_from_cistromeDB
+import scheduler
 import json
+
 
 class TestRequests_from_cistromeDB(unittest.TestCase):
 
 
     def setUp(self):
-        sample_queue_path = './chips_test_dirs/cistrome_pipeline.conf'
+        sample_queue_path = './chips_test_dirs/cistrome_pipeline_test.conf'
         sample_json_file  = './chips_test_dirs/test_collection.json'
 
         self.sample_queue = requests_from_cistromeDB.SampleQueue(sample_queue_path)
@@ -29,7 +31,7 @@ class TestRequests_from_cistromeDB(unittest.TestCase):
     def test_set_job_info(self):
         self.sample_queue.set_sample_info(sample_id='TEST0000000001',info_key='sra',info_val={'12345':'COMPLETE'})
         self.sample_queue.set_sample_info(sample_id='TEST0000000001',info_key='chips',info_val={'123456':'RUNNING'})
-        print(self.sample_queue.local_samples)
+        print('local sample queue:', self.sample_queue.local_samples)
         self.assertEqual( self.sample_queue.local_samples['samples_to_be_processed']['TEST0000000001']['CHIPS'], {'123456':'RUNNING'} )
 
 
@@ -55,13 +57,6 @@ class TestRequests_from_cistromeDB(unittest.TestCase):
 
 
 class TestSRAMethods(unittest.TestCase):
-
-    def test_gsm_html(self):
-        gsm = 'GSM4443858'
-        gsm_html = sra.get_gsm_html(gsm)
-        srx_html = sra.get_srx_html(gsm_html)
-        srr = sra.get_srr(srx_html)
-        self.assertEqual(srr,['SRR11449080'])
 
 
     def test_paired_end_layout_type(self):
@@ -105,7 +100,7 @@ class TestChipsTest(unittest.TestCase):
     def setUp(self):
         path_root = './'
         sample_id = 'James_Bond_007'
-        config_file_path = './chips_test_dirs/test_layout.yaml' 
+        config_file_path = './chips_test_dirs/layout_test.yaml'
         path_and_check = path_parser.paths_from_yaml(config_file_path,path_root=path_root,sample_id=sample_id)
         self.path_list = path_and_check['path_list'] 
         self.check_register = path_and_check['check_register'] 
@@ -131,6 +126,20 @@ class TestChipsTest(unittest.TestCase):
         self.assertTrue(len(path_dict['./chips_test_dirs/level1/file(\w+).txt'])==2)
 
 
+class TestProcessStatusFile(unittest.TestCase):
+    def setUp(self):
+        configpath = './chips_test_dirs/cistrome_pipeline_test.conf' 
+        scheduler.Config(configpath)
+
+    def test_write_process_status_file(self):
+        scheduler.write_process_status_file( external_id='GSM4565966', external_id_type='GEO', process_status='COMPLETE')
+        ref_file = './chips_test_dirs/runs/GSM4565966/cistrome/datasetGSM4565966_status_ref.json'
+        with open(ref_file,'r') as fp:
+            process_status_ref = json.load(fp)
+        test_file = './chips_test_dirs/runs/GSM4565966/cistrome/datasetGSM4565966_status.json'
+        with open(test_file,'r') as fp:
+            process_status = json.load(fp)
+        self.assertTrue( process_status == process_status_ref )
 
 
 if __name__ == '__main__':

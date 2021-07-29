@@ -2,17 +2,20 @@
 
 # ================================
 # CistromeDB
-# @date: July 2020
+# @date: July 2021
 # ================================
 
 import os, sys
-import urllib.request
+#import urllib.request
+import requests
 import re
 import argparse
 import subprocess
 import configparser
 from pathlib import Path
 from cistrome_logger import cistrome_logger
+
+TIMEOUT = 10
  
 #SRATOOL_DEFAULT = "/repository/user/main/public/root"
 class Log():
@@ -97,7 +100,7 @@ class SRA_Tools():
         subprocess.run(cmd)
 
 
-    # note one multiple runs (SRRs) can comprise a single SRA
+    # note multiple runs (SRRs) can comprise a single SRA
     # in addition care needs to be taken of paired end data
     # see https://hbctraining.github.io/Accessing_public_genomic_data/lessons/downloading_from_SRA.html
     def download_fastq_srr_by_prefetch(self, srr_list):
@@ -346,8 +349,11 @@ def get_srx_html(gsm_html):
         srx = srx_info.group().rstrip('"').lstrip('https://www.ncbi.nlm.nih.gov/sra?term=')
         # get the SRR id('>SRR1588518</a></td><td') and find the type of layout
         srx_url = 'http://www.ncbi.nlm.nih.gov/sra?term=%s' % srx
-        srx_html = urllib.request.urlopen(srx_url).read().decode('utf-8')
-        return srx_html
+        #srx_html = urllib.request.urlopen(srx_url).read().decode('utf-8')
+        srx_url = requests.utils.quote(srx_url,safe=':)(][&?=/')
+        srx_html = requests.get(srx_url,timeout=TIMEOUT)
+        srx_html.encoding = 'utf-8'
+        return srx_html.text
     else:
         Log.logger.error(f'srx file not found')
         return None
@@ -355,8 +361,11 @@ def get_srx_html(gsm_html):
 
 def get_gsm_html(gsm):
     gsm_url = 'http://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=%s' % gsm
-    gsm_html = urllib.request.urlopen(gsm_url).read().decode('utf-8')
-    return gsm_html
+    #gsm_html = urllib.request.urlopen(gsm_url).read().decode('utf-8')
+    gsm_url = requests.utils.quote(gsm_url,safe=':)(][&?=/')
+    gsm_html = requests.get(gsm_url,timeout=TIMEOUT)
+    gsm_html.encoding = 'utf-8'
+    return gsm_html.text
 
 
 def main():
