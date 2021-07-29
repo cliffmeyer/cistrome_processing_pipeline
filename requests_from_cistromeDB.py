@@ -164,8 +164,9 @@ class SampleQueue():
 
     def write_local_queue(self):             
         local_queue_file = self.sys_conf['process_server']['local_queue_file']
-        with open(local_queue_file,'w') as fp:
-            json.dump(self.local_samples,fp)
+        with self.lock:
+            with open(local_queue_file,'w') as fp:
+                json.dump(self.local_samples,fp)
 
  
     def update_local_queue(self):
