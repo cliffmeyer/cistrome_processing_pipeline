@@ -316,7 +316,8 @@ def write_process_status_file( external_id='', external_id_type='GEO', process_s
 
     sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
     cistrome_path = Config.sys_config['paths']['cistrome_result']
-    filename = os.path.join( sample_path, cistrome_path, f'{external_id}_status.json' )
+    # write file to results folder eg. cistrome/GSM12345/
+    filename = os.path.join( sample_path, cistrome_path, external_id, f'{external_id}_status.json' )
     with open(filename,'w') as fp:
         json.dump( samples_json, fp )
 
@@ -507,12 +508,6 @@ def check_chips_results():
         time.sleep(1)
         print(datetime.datetime.now())
 
-        if chips_check_complete_check(external_id):
-            process_status = 'COMPLETE'
-            write_process_status_file( external_id=external_id, external_id_type='GEO', process_status=process_status )
-            # update process_status in local queue
-            sample_queue.set_sample_process_status( sample_id=external_id, process_status=process_status )
-
     return 
 
 
@@ -551,8 +546,15 @@ def transfer_to_server():
                 break
 
             # process_status_files is written on success or when giving up
-            if (chips_check_complete_check(external_id) or 
-                process_status_file_check(external_id)):
+            if chips_check_complete_check(external_id):
+                process_status = 'COMPLETE'
+                write_process_status_file( external_id=external_id, external_id_type='GEO', process_status=process_status )
+                # update process_status in local queue
+                sample_queue.set_sample_process_status( sample_id=external_id, process_status=process_status )
+
+            # if process status file exists the process is complete or given up
+            # in either case the result must be reported to the home server
+            if process_status_file_check(external_id):
 
                 jobname = f'{external_id}_data_rsync'
                 if cluster_status.is_job_name_in_queue(jobname) == True:

@@ -124,15 +124,11 @@ class ChipsSetup():
 
         broad_histone  = ["h3k27me1","h3k27me2","h3k27me3","h3k9me1","h3k9me2","h3k9me3","h3k20me1","h3k20me2","h3k20me3","h3k36me1","h3k36me2","h3k36me3","h3k79me1","h3k79me2","h3k79me3","h2ak119ub"]
         narrow_histone = ["h3k27ac","h3k9ac","h3k4me1","h3k4me2","h3k4me3","h3s10p"]   
+        chromatin_access = ["dnase","atac"]
 
         chips_config = {}
 
-        if self.sample_type == "dnase":
-            chips_config["cutoff"] = 150
-            chips_config["ChIP_model"] = False
-            chips_config["keep_bam"] = True
-            self.broad_type = False
-        elif self.sample_type == "atac":
+        if self.sample_type in chromatin_access:
             chips_config["cutoff"] = 150
             chips_config["ChIP_model"] = False
             chips_config["keep_bam"] = True
