@@ -68,7 +68,7 @@ def rsync_auth_mode_keyword(func):
             'rsync_to_passwd_auth_server':[], 
             'rsync_to_key_auth_server':[],
             'rsync_to_google_authenticated_server':[],
-            'rsync_to_google_cloud_server':['sample_id_stub']
+            'rsync_to_google_cloud_server':['sample_id_stub','recursive']
         }
         kwargs_new = {key:val for key,val in kwargs.items() \
             if key in valid_kwargs[func.__name__]}
@@ -133,6 +133,7 @@ def rsync_to_passwd_auth_server(path):
 
 @rsync_auth_mode_keyword
 def rsync_to_google_authenticated_server(path):
+    # this is google authentication for a server, not google cloud.
     validator = google_auth.Validator(Config.key_file)
     password = Config.password()
     # args = ['-avPL','--progress',',path,f'{Config.remote_login}:{Config.path}/','2>/dev/null']
@@ -167,7 +168,7 @@ def rsync_to_google_authenticated_server(path):
 
 
 @rsync_auth_mode_keyword
-def rsync_to_google_cloud_server(path, sample_id_stub=''):
+def rsync_to_google_cloud_server(path, sample_id_stub='', recursive=False):
 
     if os.path.isfile(path) == False: 
         stdout_path = os.path.join(path,f'{Config.server}_rsync_stdout.txt')
@@ -179,8 +180,10 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
 
     remote_path = os.path.join( Config.path, sample_id_stub )
 
+    r_opt = {True:'-r',False:''} # recursive folder copy option
+
     try:
-        transfer_cmd = f'gsutil rsync -r {path} gs://{remote_path}/'
+        transfer_cmd = f'gsutil rsync {r_opt[recursive]} {path} gs://{remote_path}/'
         transfer_cmd = transfer_cmd.replace('///','//')
         fp_stdout = open(stdout_path,'w')
         fp_stderr = open(stderr_path,'w')
@@ -191,8 +194,6 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
         return True
     except:
         return False 
-
-
 
 
 def transfer_to_server(sample_id,attempts=5):
@@ -224,8 +225,10 @@ def transfer_to_server(sample_id,attempts=5):
         stat_status = rsync_for_auth_mode[auth_mode](sample_status_path)
         # If the md5 exists the sample also exists
         if os.path.exists(sample_md5_path):
-            status     = rsync_for_auth_mode[auth_mode](sample_path, sample_id_stub=sample_id_stub)
-            md5_status = rsync_for_auth_mode[auth_mode](sample_md5_path, sample_id_stub=sample_id_stub)
+            status     = rsync_for_auth_mode[auth_mode](sample_path, 
+                sample_id_stub=sample_id_stub, recursive=True)
+            md5_status = rsync_for_auth_mode[auth_mode](sample_md5_path, 
+                sample_id_stub=sample_id_stub, recursive=False)
 
         if os.path.exists(sample_md5_path):
             if status == True and md5_status == True and stat_status == True:
