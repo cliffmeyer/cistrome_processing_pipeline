@@ -60,7 +60,24 @@ class Config:
         return password 
 
 
-@rsynch_auth_mode_keyword
+# filter out undefined keywords
+def rsync_auth_mode_keyword(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        valid_kwargs = { 
+            'rsync_to_passwd_auth_server':[], 
+            'rsync_to_key_auth_server':[],
+            'rsync_to_google_authenticated_server':[],
+            'rsync_to_google_cloud_server':['sample_id_stub']
+        }
+        kwargs_new = {key:val for key,val in kwargs.items() \
+            if key in valid_kwargs[func.__name__]}
+        result = func(*args, **kwargs_new)
+        return result
+    return wrapper
+
+
+@rsync_auth_mode_keyword
 def rsync_to_key_auth_server(path):
     # facilitates special port
     if Config.port != '':
@@ -89,7 +106,7 @@ def rsync_to_key_auth_server(path):
         return False
 
 
-@rsynch_auth_mode_keyword
+@rsync_auth_mode_keyword
 def rsync_to_passwd_auth_server(path):
     password = Config.password()
     args = ['-avPL','--progress',path,f'{Config.remote_login}:{Config.path}/']
@@ -114,7 +131,7 @@ def rsync_to_passwd_auth_server(path):
         return False
 
 
-@rsynch_auth_mode_keyword
+@rsync_auth_mode_keyword
 def rsync_to_google_authenticated_server(path):
     validator = google_auth.Validator(Config.key_file)
     password = Config.password()
@@ -149,7 +166,7 @@ def rsync_to_google_authenticated_server(path):
         return False
 
 
-@rsynch_auth_mode_keyword
+@rsync_auth_mode_keyword
 def rsync_to_google_cloud_server(path, sample_id_stub=''):
 
     if os.path.isfile(path) == False: 
@@ -176,21 +193,6 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
         return False 
 
 
-# filter out undefined keywords
-def rsynch_auth_mode_keyword(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        valid_kwargs = { 
-            'rsync_to_passwd_auth_server':[], 
-            'rsync_to_key_auth_server':[],
-            'rsync_to_google_authenticated_server':[],
-            'rsync_to_google_cloud_server':['sample_id_stub']
-        }
-        kwargs_new = {key:val for key,val in kwargs.items() \
-            if key in valid_kwargs[func.__name__]}
-        result = func(*args, **kwargs_new)
-        return result
-    return wrapper
 
 
 def transfer_to_server(sample_id,attempts=5):
