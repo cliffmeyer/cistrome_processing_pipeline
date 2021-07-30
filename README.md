@@ -47,7 +47,7 @@ The scheduler restarts incomplete CHIPs jobs, as many times as needed to get the
 - transfer processed data to Cistrome DB home server
 - transfer processed data to backup server, and if process fail to transfer status report (TODO)
 - clean up after completion: delete most files, leaving only record that processing occurred. 
-- The process status is saved in a file `dataset{CISTROME_ID|EXTERNAL_ID}_status.json`.
+- The process status is saved in a file `{CISTROME_ID|EXTERNAL_ID}_status.json`.
 
 
 The larger jobs initiated by the scheduler are submitted via SLURM sbatch. 

@@ -23,7 +23,7 @@
                 check_peak_xls_file
 
 - cistrome:
-    - datasetSAMPLEID:
+    - SAMPLEID:
         - SAMPLEID_peaks.bed:
             check_peak_bed_file
         - SAMPLEID_peaks.xls:

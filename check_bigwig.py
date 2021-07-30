@@ -28,5 +28,5 @@ def main(filename):
 
 
 if __name__ == '__main__':
-    filename = '/n/holyscratch01/xiaoleliu_lab/cistrome_data_collection/runs/GSM817182/cistrome/datasetGSM817182/GSM817182_treat.bw'
+    filename = '/n/holyscratch01/xiaoleliu_lab/cistrome_data_collection/runs/GSM817182/cistrome/GSM817182/GSM817182_treat.bw'
     main(filename)

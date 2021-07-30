@@ -169,10 +169,10 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
  
 
 def transfer_to_server(sample_id,attempts=5):
-    sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'dataset{sample_id}')
+    sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}')
     sample_md5_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}.md5')
     sample_status_path = os.path.join( Config.data_collection_runs,
-        sample_id, Config.cistrome_result, f'dataset{external_id}_status.json' )
+        sample_id, Config.cistrome_result, f'{external_id}_status.json' )
  
     auth_mode = Config.auth_mode
     if auth_mode == 'google_cloud':

@@ -240,7 +240,7 @@ def download_from_sra():
 def process_status_file_check(external_id):
     chips_run_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
     cistrome_path = os.path.join( chips_run_path, Config.sys_config['paths']['cistrome_result'] ) 
-    process_status_path = os.path.join( cistrome_path, f'dataset{external_id}_status.json' )
+    process_status_path = os.path.join( cistrome_path, f'{external_id}_status.json' )
     return os.path.exists(process_status_path) 
 
 
@@ -299,7 +299,7 @@ def update_cluster_runstats_in_local_queue():
 def write_process_status_file( external_id='', external_id_type='GEO', process_status=''):
     """
     Writes the process status to a file:
-       dataset{external_id}_status.json
+       {external_id}_status.json
     This file, is transferred to the home server and used to update the 
     process status in the Cistrome database.
     Json file format must be compatible with cistrome.internal_interfaces.
@@ -316,7 +316,7 @@ def write_process_status_file( external_id='', external_id_type='GEO', process_s
 
     sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
     cistrome_path = Config.sys_config['paths']['cistrome_result']
-    filename = os.path.join( sample_path, cistrome_path, f'dataset{external_id}_status.json' )
+    filename = os.path.join( sample_path, cistrome_path, f'{external_id}_status.json' )
     with open(filename,'w') as fp:
         json.dump( samples_json, fp )
 

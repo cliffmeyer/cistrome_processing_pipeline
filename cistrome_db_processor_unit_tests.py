@@ -133,10 +133,10 @@ class TestProcessStatusFile(unittest.TestCase):
 
     def test_write_process_status_file(self):
         scheduler.write_process_status_file( external_id='GSM4565966', external_id_type='GEO', process_status='COMPLETE')
-        ref_file = './chips_test_dirs/runs/GSM4565966/cistrome/datasetGSM4565966_status_ref.json'
+        ref_file = './chips_test_dirs/runs/GSM4565966/cistrome/GSM4565966_status_ref.json'
         with open(ref_file,'r') as fp:
             process_status_ref = json.load(fp)
-        test_file = './chips_test_dirs/runs/GSM4565966/cistrome/datasetGSM4565966_status.json'
+        test_file = './chips_test_dirs/runs/GSM4565966/cistrome/GSM4565966_status.json'
         with open(test_file,'r') as fp:
             process_status = json.load(fp)
         self.assertTrue( process_status == process_status_ref )
