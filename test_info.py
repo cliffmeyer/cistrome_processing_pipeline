@@ -1,16 +1,17 @@
-import sched
-import time
-import datetime
-from functools import wraps
-from threading import Thread
-import subprocess
-import os
 import argparse
 import configparser
-import re
-import requests_from_cistromeDB
-import cluster_stats
+import datetime
+from functools import wraps
 import json
+import os
+import re
+import sched
+import subprocess
+from threading import Thread
+import time
+
+import cluster_stats
+import requests_from_cistromeDB
 
 
 def match_sbatch_history(suffix='',jobs_name=[],jobs_status=[],jobs_id=[]):

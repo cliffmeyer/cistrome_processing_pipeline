@@ -1,12 +1,16 @@
 #!/usr/bin/env python
-import datetime
 import argparse
+import configparser 
+import datetime
+from functools import wraps
+import json
+import os
 import pexpect
 import subprocess
-import json
-import os,sys,time
+import sys
+import time
+
 import google_auth
-import configparser 
 
 DEBUG = True
 
@@ -56,6 +60,7 @@ class Config:
         return password 
 
 
+@rsynch_auth_mode_keyword
 def rsync_to_key_auth_server(path):
     # facilitates special port
     if Config.port != '':
@@ -84,6 +89,7 @@ def rsync_to_key_auth_server(path):
         return False
 
 
+@rsynch_auth_mode_keyword
 def rsync_to_passwd_auth_server(path):
     password = Config.password()
     args = ['-avPL','--progress',path,f'{Config.remote_login}:{Config.path}/']
@@ -108,6 +114,7 @@ def rsync_to_passwd_auth_server(path):
         return False
 
 
+@rsynch_auth_mode_keyword
 def rsync_to_google_authenticated_server(path):
     validator = google_auth.Validator(Config.key_file)
     password = Config.password()
@@ -142,6 +149,7 @@ def rsync_to_google_authenticated_server(path):
         return False
 
 
+@rsynch_auth_mode_keyword
 def rsync_to_google_cloud_server(path, sample_id_stub=''):
 
     if os.path.isfile(path) == False: 
@@ -165,8 +173,25 @@ def rsync_to_google_cloud_server(path, sample_id_stub=''):
         fp_stderr.close()
         return True
     except:
-        return False
- 
+        return False 
+
+
+# filter out undefined keywords
+def rsynch_auth_mode_keyword(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        valid_kwargs = { 
+            'rsync_to_passwd_auth_server':[], 
+            'rsync_to_key_auth_server':[],
+            'rsync_to_google_authenticated_server':[],
+            'rsync_to_google_cloud_server':['sample_id_stub']
+        }
+        kwargs_new = {key:val for key,val in kwargs.items() \
+            if key in valid_kwargs[func.__name__]}
+        result = func(*args, **kwargs_new)
+        return result
+    return wrapper
+
 
 def transfer_to_server(sample_id,attempts=5):
     sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}')
@@ -175,10 +200,8 @@ def transfer_to_server(sample_id,attempts=5):
         sample_id, Config.cistrome_result, f'{sample_id}_status.json' )
  
     auth_mode = Config.auth_mode
-    if auth_mode == 'google_cloud':
-        sample_id_stub = sample_id[:-3]
-    else:
-        sample_id_stub = None
+    # only used to define directories in google cloud 
+    sample_id_stub = sample_id[:-3]
 
     rsync_for_auth_mode = {
         'password': rsync_to_passwd_auth_server,
@@ -195,19 +218,12 @@ def transfer_to_server(sample_id,attempts=5):
         if DEBUG == True:
             print(sample_path)
 
-        if sample_id_stub:
-            # The status file exists whether or not the run completed
-            stat_status = rsync_for_auth_mode[auth_mode](sample_status_path)
-            # If the md5 exists the sample also exists
-            if os.path.exists(sample_md5_path):
-                status      = rsync_for_auth_mode[auth_mode](sample_path)
-                md5_status  = rsync_for_auth_mode[auth_mode](sample_md5_path)
-
-        else: 
-            stat_status = rsync_for_auth_mode[auth_mode](sample_status_path, sample_id_stub=sample_id_stub)
-            if os.path.exists(sample_md5_path):
-                status      = rsync_for_auth_mode[auth_mode](sample_path, sample_id_stub=sample_id_stub)
-                md5_status  = rsync_for_auth_mode[auth_mode](sample_md5_path, sample_id_stub=sample_id_stub)
+        # The status file exists whether or not the run completed
+        stat_status = rsync_for_auth_mode[auth_mode](sample_status_path)
+        # If the md5 exists the sample also exists
+        if os.path.exists(sample_md5_path):
+            status     = rsync_for_auth_mode[auth_mode](sample_path, sample_id_stub=sample_id_stub)
+            md5_status = rsync_for_auth_mode[auth_mode](sample_md5_path, sample_id_stub=sample_id_stub)
 
         if os.path.exists(sample_md5_path):
             if status == True and md5_status == True and stat_status == True:
