@@ -315,9 +315,14 @@ def write_process_status_file( external_id='', external_id_type='GEO', process_s
         }
 
     sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
-    cistrome_path = Config.sys_config['paths']['cistrome_result']
+    cistrome_branch = Config.sys_config['paths']['cistrome_result']
+    cistrome_path = os.path.join( sample_path, cistrome_branch, external_id )
+
     # write file to results folder eg. cistrome/GSM12345/
-    filename = os.path.join( sample_path, cistrome_path, external_id, f'{external_id}_status.json' )
+    if not os.path.exists(cistrome_path):
+        os.mkdir(cistrome_path)
+
+    filename = os.path.join( cistrome_path, f'{external_id}_status.json' )
     with open(filename,'w') as fp:
         json.dump( samples_json, fp )
 
