@@ -630,7 +630,7 @@ def transfer_to_backup_server():
             sample_path = os.path.join(Config.sys_config['paths']['data_collection_runs'], external_id)
             log_path = os.path.join( sample_path, f'backup_rsync_log_{external_id}.txt' )
             sbatch_path = os.path.join( Config.sys_config['paths']['data_collection_sbatch'], f'{jobname}.sbatch')
-            cmd = f'python file_transfer_to_server.py -c {configpath} -i {external_id} -s {server}'
+            cmd = f'python file_transfer_to_server.py -c {configpath} -i {external_id} -s {server} --backup'
 
             if not DEBUG:
                 print(f'rsync {external_id}:',datetime.datetime.now(),file=fp)

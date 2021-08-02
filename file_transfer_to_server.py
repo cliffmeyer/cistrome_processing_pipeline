@@ -6,8 +6,8 @@ from functools import wraps
 import json
 import os
 import pexpect
-import subprocess
 import sys
+import subprocess
 import time
 
 import google_auth
@@ -240,9 +240,9 @@ def transfer_to_server(sample_id,attempts=5):
     return status
 
 
-def write_transfer_ok_file(sample_id,server=''):
+def write_transfer_ok_file(sample_id,server='',backup=False):
     sample_path = os.path.join( Config.data_collection_runs, sample_id )
-    if server == 'backup_server':
+    if backup:
         transfer_ok = os.path.join( sample_path,f'{sample_id}_backup_ok.txt' )
     else:
         transfer_ok = os.path.join( sample_path,f'{sample_id}_rsync_ok.txt' )
@@ -254,6 +254,7 @@ def main():
         parser = argparse.ArgumentParser(description="""Transfer chips result to data server""")
         parser.add_argument( '-c', dest='config', type=str, required=True, help='the path of config file')
         parser.add_argument( '-a', dest='attempts', type=int, default=5, required=False, help='number of transfer attempts')
+        parser.add_argument( '--backup', action=store_true, help='indication whether this is a backup, determines ok file name'.)
         parser.add_argument( '-i', dest='samplename', type=str, required=True, help='name of sample that needs to be transferred')
         parser.add_argument( '-s', dest='server', choices=['data_server','home_server','backup_server','google_cloud'], required=True, default='data_server',help='where to send files to')
 
@@ -262,7 +263,7 @@ def main():
 
         transfer_succeeded = transfer_to_server(args.samplename,attempts=args.attempts)
         if transfer_succeeded:
-            write_transfer_ok_file(args.samplename,server=args.server)
+            write_transfer_ok_file(args.samplename,server=args.server, backup=args.backup)
  
     except KeyboardInterrupt:
         sys.stderr.write("User interrupted me!\n")
