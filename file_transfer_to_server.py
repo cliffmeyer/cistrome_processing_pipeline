@@ -65,9 +65,9 @@ def rsync_auth_mode_keyword(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         valid_kwargs = { 
-            'rsync_to_passwd_auth_server':[], 
-            'rsync_to_key_auth_server':[],
-            'rsync_to_google_authenticated_server':[],
+            'rsync_to_passwd_auth_server':['sample_id_stub'], 
+            'rsync_to_key_auth_server':['sample_id_stub'],
+            'rsync_to_google_authenticated_server':['sample_id_stub'],
             'rsync_to_google_cloud_server':['sample_id_stub','recursive']
         }
         kwargs_new = {key:val for key,val in kwargs.items() \
@@ -78,7 +78,7 @@ def rsync_auth_mode_keyword(func):
 
 
 @rsync_auth_mode_keyword
-def rsync_to_key_auth_server(path):
+def rsync_to_key_auth_server(path, sample_id_stub=''):
     # facilitates special port
     if Config.port != '':
         port_str = f'-e "/usr/bin/ssh -p {Config.port}"'
@@ -93,8 +93,10 @@ def rsync_to_key_auth_server(path):
         stdout_path = os.path.join(path_head,f'{Config.server}_rsync_stdout.txt')
         stderr_path = os.path.join(path_head,f'{Config.server}_rsync_stderr.txt')
 
+    remote_path = os.path.join( Config.path, sample_id_stub )
+
     try:
-        transfer_cmd  = f'rsync -aPL {port_str} {path} {Config.remote_login}:{Config.path}/'
+        transfer_cmd  = f'rsync -aPL {port_str} {path} {Config.remote_login}:{remote_path}/'
         fp_stdout = open(stdout_path,'w')
         fp_stderr = open(stderr_path,'w')
         subprocess.call(transfer_cmd,shell=True,stdout=fp_stdout,stderr=fp_stderr)
@@ -107,9 +109,10 @@ def rsync_to_key_auth_server(path):
 
 
 @rsync_auth_mode_keyword
-def rsync_to_passwd_auth_server(path):
+def rsync_to_passwd_auth_server(path, sample_id_stub=''):
     password = Config.password()
-    args = ['-avPL','--progress',path,f'{Config.remote_login}:{Config.path}/']
+    remote_path = os.path.join( Config.path, sample_id_stub )
+    args = ['-avPL','--progress',path,f'{Config.remote_login}:{remote_path}/']
 
     if DEBUG:
         print(args)
@@ -132,12 +135,13 @@ def rsync_to_passwd_auth_server(path):
 
 
 @rsync_auth_mode_keyword
-def rsync_to_google_authenticated_server(path):
+def rsync_to_google_authenticated_server(path, sample_id_stub=''):
     # this is google authentication for a server, not google cloud.
     validator = google_auth.Validator(Config.key_file)
     password = Config.password()
     # args = ['-avPL','--progress',',path,f'{Config.remote_login}:{Config.path}/','2>/dev/null']
-    args = ['-avPL','--progress',path,f'{Config.remote_login}:{Config.path}/']
+    remote_path = os.path.join( Config.path, sample_id_stub )
+    args = ['-aPL','--progress',path,f'{Config.remote_login}:{remote_path}/']
 
     if DEBUG:
         print(args)
@@ -183,7 +187,7 @@ def rsync_to_google_cloud_server(path, sample_id_stub='', recursive=False):
     r_opt = {True:'-r',False:''} # recursive folder copy option
 
     try:
-        transfer_cmd = f'gsutil rsync {r_opt[recursive]} {path} gs://{remote_path}/'
+        transfer_cmd = f'gsutil rsync {r_opt[recursive]} {path} gs://{remote_path}/ > /dev/null 2>&1'
         transfer_cmd = transfer_cmd.replace('///','//')
         fp_stdout = open(stdout_path,'w')
         fp_stderr = open(stderr_path,'w')
@@ -252,9 +256,9 @@ def write_transfer_ok_file(sample_id,server='',backup=False):
 def main():
     try:
         parser = argparse.ArgumentParser(description="""Transfer chips result to data server""")
-        parser.add_argument( '-c', dest='config', type=str, required=True, help='the path of config file')
         parser.add_argument( '-a', dest='attempts', type=int, default=5, required=False, help='number of transfer attempts')
         parser.add_argument( '--backup', action=store_true, help='indication whether this is a backup, determines ok file name'.)
+        parser.add_argument( '-c', dest='config', type=str, required=True, help='the path of config file')
         parser.add_argument( '-i', dest='samplename', type=str, required=True, help='name of sample that needs to be transferred')
         parser.add_argument( '-s', dest='server', choices=['data_server','home_server','backup_server','google_cloud'], required=True, default='data_server',help='where to send files to')
 
