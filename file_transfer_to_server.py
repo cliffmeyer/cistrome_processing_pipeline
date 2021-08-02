@@ -187,7 +187,7 @@ def rsync_to_google_cloud_server(path, sample_id_stub='', recursive=False):
     r_opt = {True:'-r',False:''} # recursive folder copy option
 
     try:
-        transfer_cmd = f'gsutil rsync {r_opt[recursive]} {path} gs://{remote_path}/ > /dev/null 2>&1'
+        transfer_cmd = f'gsutil rsync {r_opt[recursive]} {path} gs://{remote_path}/'
         transfer_cmd = transfer_cmd.replace('///','//')
         fp_stdout = open(stdout_path,'w')
         fp_stderr = open(stderr_path,'w')
@@ -257,7 +257,7 @@ def main():
     try:
         parser = argparse.ArgumentParser(description="""Transfer chips result to data server""")
         parser.add_argument( '-a', dest='attempts', type=int, default=5, required=False, help='number of transfer attempts')
-        parser.add_argument( '--backup', action=store_true, help='indication whether this is a backup, determines ok file name'.)
+        parser.add_argument( '--backup', dest='backup', action='store_true', help='indication whether this is a backup, determines ok file name')
         parser.add_argument( '-c', dest='config', type=str, required=True, help='the path of config file')
         parser.add_argument( '-i', dest='samplename', type=str, required=True, help='name of sample that needs to be transferred')
         parser.add_argument( '-s', dest='server', choices=['data_server','home_server','backup_server','google_cloud'], required=True, default='data_server',help='where to send files to')

@@ -24,7 +24,7 @@ import cluster_stats
 
 DEBUG = False
 
-START_HOUR = 11
+START_HOUR = 13
 
 MINUTE = 60
 HOUR = 60*MINUTE
@@ -38,8 +38,8 @@ event_sched = {
     'download_from_sra':              { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': HOUR },
     'setup_and_run_chips':            { 'start_time': {'hr':START_HOUR,'min':15,'sec':0}, 'interval': 30*MINUTE },
     'check_chips_results':            { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': HOUR },
-    'transfer_to_server':             { 'start_time': {'hr':START_HOUR,'min':35,'sec':0}, 'interval': HOUR },
-    'transfer_to_backup_server':      { 'start_time': {'hr':20,'min':30,'sec':0}, 'interval': DAY },
+    'transfer_to_server':             { 'start_time': {'hr':START_HOUR,'min':40,'sec':0}, 'interval': HOUR },
+    'transfer_to_backup_server':      { 'start_time': {'hr':START_HOUR,'min':50,'sec':0}, 'interval': DAY },
     'clean_up_after_completion':      { 'start_time': {'hr':START_HOUR,'min':55,'sec':0}, 'interval': HOUR },
     'test':                           { 'start_time': {'hr':START_HOUR,'min':22,'sec':0}, 'interval': 10*MINUTE }
 }
@@ -237,10 +237,16 @@ def download_from_sra():
     fp.close()
 
 
+def get_process_status_path(external_id):
+    sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
+    cistrome_branch = Config.sys_config['paths']['cistrome_result']
+    path = os.path.join( sample_path, cistrome_branch, external_id )
+    return path 
+
+
 def process_status_file_check(external_id):
-    chips_run_path   = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
-    cistrome_path = os.path.join( chips_run_path, Config.sys_config['paths']['cistrome_result'] ) 
-    process_status_path = os.path.join( cistrome_path, f'{external_id}_status.json' )
+    path = get_process_status_path(external_id)
+    process_status_path = os.path.join( path, f'{external_id}_status.json' )
     return os.path.exists(process_status_path) 
 
 
@@ -314,15 +320,13 @@ def write_process_status_file( external_id='', external_id_type='GEO', process_s
             }]
         }
 
-    sample_path = os.path.join( Config.sys_config['paths']['data_collection_runs'], external_id  )
-    cistrome_branch = Config.sys_config['paths']['cistrome_result']
-    cistrome_path = os.path.join( sample_path, cistrome_branch, external_id )
 
+    path = get_process_status_path(external_id)
     # write file to results folder eg. cistrome/GSM12345/
-    if not os.path.exists(cistrome_path):
-        os.mkdir(cistrome_path)
+    if not os.path.exists(path):
+        os.mkdir(path)
 
-    filename = os.path.join( cistrome_path, f'{external_id}_status.json' )
+    filename = os.path.join(path, f'{external_id}_status.json' )
     with open(filename,'w') as fp:
         json.dump( samples_json, fp )
 
