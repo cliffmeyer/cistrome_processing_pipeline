@@ -78,6 +78,12 @@ def asynch(func):
 
 
 def schedule(init_time,interval=24*60*60):
+    """
+    Function scheduler
+    args:
+        - init_time: initial time for running function
+        - interval: interval between runs in seconds 
+    """
     def decorator(func):
         def periodic(scheduler, interval, action, actionargs=()):
             print('periodic')
@@ -102,6 +108,18 @@ def schedule(init_time,interval=24*60*60):
 
 
 def match_sbatch_history(suffix='',jobs_name=[],jobs_status=[],jobs_id=[]):
+    """
+    find jobs in jobs_name list matching suffix-based pattern.
+    args:
+       - suffix: indictates the type of job we want to find
+       - jobs_name: list is jobs in history
+       - jobs_status: status on SLURM
+       - jobs_id: SLURM job id numbers
+    returns:
+       e.g.
+       - {GSM001: {'type': 'chips', 'status': 'RUNNING' }}
+
+    """
     pattern    = re.compile(f'([a-zA-Z0-9]+)_{suffix}\Z')
     job_status = {}
 

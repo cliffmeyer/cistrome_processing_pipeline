@@ -15,7 +15,9 @@ import google_auth
 DEBUG = True
 
 class Config:
-
+    """
+    class specifying server name, location, authentication mode etc.
+    """
     @classmethod
     def read_config(cls,config_filename,server):
         conf = configparser.ConfigParser()
@@ -173,6 +175,13 @@ def rsync_to_google_authenticated_server(path, sample_id_stub=''):
 
 @rsync_auth_mode_keyword
 def rsync_to_google_cloud_server(path, sample_id_stub='', recursive=False):
+    """
+    rsync to google cloud
+    args:
+       - path: file or folder to be transferred
+       - sample_id: usually gsm.
+       - recursive: whether to transfer subfolders and files recursively.
+    """
 
     if os.path.isfile(path) == False: 
         stdout_path = os.path.join(path,f'{Config.server}_rsync_stdout.txt')
@@ -201,6 +210,13 @@ def rsync_to_google_cloud_server(path, sample_id_stub='', recursive=False):
 
 
 def transfer_to_server(sample_id,attempts=5):
+    """
+    rsync sample to server.
+    The identity and authentication mode are speficied in the Config class.
+    args:
+       - sample_id: usually GSM id.
+       - attempts: number times to attempt rsync before giving up. 
+    """
     sample_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}')
     sample_md5_path = os.path.join( Config.data_collection_runs, sample_id, Config.cistrome_result, f'{sample_id}.md5')
     sample_status_path = os.path.join( Config.data_collection_runs,
@@ -244,7 +260,12 @@ def transfer_to_server(sample_id,attempts=5):
     return status
 
 
-def write_transfer_ok_file(sample_id,server='',backup=False):
+def write_transfer_ok_file(sample_id, backup=False):
+    """
+    The existence of these files indicates the file transfer is complete.
+    args:
+       backup: indictates if the transfer was a backup. 
+    """
     sample_path = os.path.join( Config.data_collection_runs, sample_id )
     if backup:
         transfer_ok = os.path.join( sample_path,f'{sample_id}_backup_ok.txt' )
